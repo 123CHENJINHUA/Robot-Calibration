@@ -15,11 +15,14 @@ from fairino import Robot
 from Joy import joy
 import time
 import multiprocessing
+import pyrealsense2 as rs
 
 def process_camera(camera_id, robot, mtx, dist):
    
 
     robot_pos = []
+    R_list = []
+    T_list = []
 
     cap = cv2.VideoCapture(camera_id)
     width = 1920
@@ -30,10 +33,7 @@ def process_camera(camera_id, robot, mtx, dist):
     cap.set(5, fps)  
     cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'))
 
-    p3_x, p3_y = 0, 0
-
-    R_list = []
-    T_list = []
+    
 
     ###------------------ ARUCO TRACKER ---------------------------
     while (True):
@@ -77,21 +77,6 @@ def process_camera(camera_id, robot, mtx, dist):
 
                 # If pose estimation is successful, draw the axis
                 if retval:
-                    org_point = np.array([[0,0,0]], dtype=np.float64)
-                    p1, _ = cv2.projectPoints(org_point, rvec_, tvec_, mtx, dist)
-                    p1_x = int(p1[0][0][0])
-                    p1_y = int(p1[0][0][1])
-                
-                    total = np.sqrt(sum(np.power((charucoCorners[0][0] - charucoCorners[1][0]), 2))) + \
-                            np.sqrt(sum(np.power((charucoCorners[1][0] - charucoCorners[3][0]), 2))) + \
-                            np.sqrt(sum(np.power((charucoCorners[3][0] - charucoCorners[2][0]), 2))) + \
-                            np.sqrt(sum(np.power((charucoCorners[2][0] - charucoCorners[0][0]), 2)))
-                    ratio = 15 / (total / 4)
-                
-                    if (p1_x > 1280 or p1_y > 1280):
-                        continue
-                    cv2.circle(frame_copy, (p1_x, p1_y), 10, (0, 0, 255))
-
                     cv2.drawFrameAxes(frame_copy, mtx, dist, rvec_, tvec_, length=0.05, thickness=2)
 
                     R_mask2cam = np.zeros((3, 3), dtype=np.float64)
@@ -168,6 +153,139 @@ def process_robot_control(robot,control):
     print("伺服运动结束错误码",error)
 
 
+def realsense_camera(camera_id,robot, mtx, dist):
+
+    robot_pos = []
+    R_list = []
+    T_list = []
+
+    # Configure depth and color streams
+    pipeline = rs.pipeline()
+    config = rs.config()
+    config.enable_stream(rs.stream.depth, 1280, 720, rs.format.z16, 30)
+    config.enable_stream(rs.stream.color, 1280, 720, rs.format.bgr8, 30)
+
+    # Start streaming
+    pipeline.start(config)
+
+    try:
+        while True:
+
+            ret_org = robot.GetActualTCPPose()
+            # Wait for a coherent pair of frames: depth and color
+            frames = pipeline.wait_for_frames()
+            depth_frame = frames.get_depth_frame()
+            color_frame = frames.get_color_frame()
+            if not depth_frame or not color_frame:
+                continue
+
+            # Convert images to numpy arrays
+            depth_image = np.asanyarray(depth_frame.get_data())
+            color_image = np.asanyarray(color_frame.get_data())
+
+            # Apply colormap on depth image (image must be converted to 8-bit per pixel first)
+            depth_colormap = cv2.applyColorMap(cv2.convertScaleAbs(depth_image, alpha=0.03), cv2.COLORMAP_JET)
+
+            frame_copy = color_image.copy()
+            # operations on the frame
+            gray = cv2.cvtColor(color_image, cv2.COLOR_BGR2GRAY)
+
+            # set dictionary size depending on the aruco marker selected
+            aruco_dict = aruco.getPredefinedDictionary(aruco.DICT_6X6_250)
+            board = cv2.aruco.CharucoBoard((3, 3), 0.041, 0.030, aruco_dict)
+            # detector parameters can be set here (List of detection parameters[3])
+            parameters = aruco.DetectorParameters()
+            parameters.adaptiveThreshConstant = 10
+
+            # lists of ids and the corners belonging to each id
+            corners, ids, rejectedImgPoints = aruco.detectMarkers(gray, aruco_dict, parameters=parameters)
+
+            # font for displaying text (below)
+            font = cv2.FONT_HERSHEY_SIMPLEX
+
+            # check if the ids list is not empty
+            # if no check is added the code will crash
+            if np.all(ids != None):
+
+                # draw a square around the markers
+                aruco.drawDetectedMarkers(frame_copy, corners)
+                retval, charucoCorners, charucoIds = cv2.aruco.interpolateCornersCharuco(corners, ids, color_image, board)
+                if retval:
+                    retval, rvec_, tvec_ = cv2.aruco.estimatePoseCharucoBoard(charucoCorners, charucoIds, board, mtx, dist, None, None)
+
+                    # If pose estimation is successful, draw the axis
+                    if retval:
+
+                        cv2.drawFrameAxes(frame_copy, mtx, dist, rvec_, tvec_, length=0.05, thickness=2)
+
+                        R_mask2cam = np.zeros((3, 3), dtype=np.float64)
+                        cv2.Rodrigues(rvec_, R_mask2cam)
+                        R_list.append(R_mask2cam)
+                        T_list.append(tvec_)
+
+                        # If Aruco mark detected well, record the TCP data.
+                        ret = ret_org
+                        robot_pos.append(ret[1])
+
+                    else:
+                        # code to show 'No Ids' when no markers are found
+                        cv2.putText(frame_copy, "No Ids", (0, 64), font, 1, (0, 255, 0), 2, cv2.LINE_AA)
+
+            # display the resulting frame
+            frame_copy = cv2.resize(frame_copy,(frame_copy.shape[1]//2, frame_copy.shape[0]//2))
+            depth_colormap = cv2.resize(depth_colormap,(depth_colormap.shape[1]//2, depth_colormap.shape[0]//2))
+            # Stack both images horizontally
+            images = np.hstack((frame_copy, depth_colormap))
+
+            # Show images
+            cv2.namedWindow('RealSense', cv2.WINDOW_AUTOSIZE)
+            cv2.imshow('RealSense', images)
+            k = cv2.waitKey(1)
+            if k == 27:
+                break
+
+        # When everything done, release the capture
+        np.save(f'./hand_eye_calibration/data/R_list_{camera_id}.npy', R_list)
+        np.save(f'./hand_eye_calibration/data/T_list_{camera_id}.npy', T_list)
+        filename_R = open(f'./hand_eye_calibration/data/R_list_{camera_id}.txt', 'w')
+        filename_T = open(f'./hand_eye_calibration/data/T_list_{camera_id}.txt', 'w')
+
+        for value in R_list:
+            filename_R.write(str(value))
+            filename_R.write('\n')
+        for value in T_list:
+            filename_T.write(str(value[0][0]))
+            filename_T.write(', ')
+            filename_T.write(str(value[1][0]))
+            filename_T.write(', ')
+            filename_T.write(str(value[2][0]))
+            filename_T.write('\n')
+
+        np.save(f'./hand_eye_calibration/data/Robot_data_{camera_id}.npy', robot_pos)
+        filename = open(f'./hand_eye_calibration/data/Robot_data_{camera_id}.txt', 'w')
+        for value in robot_pos:
+            filename.write(str(value[0]))
+            filename.write(', ')
+            filename.write(str(value[1]))
+            filename.write(', ')
+            filename.write(str(value[2]))
+            filename.write(', ')
+            filename.write(str(value[3]))
+            filename.write(', ')
+            filename.write(str(value[4]))
+            filename.write(', ')
+            filename.write(str(value[5]))
+            filename.write('\n')
+
+        cv2.destroyAllWindows()
+        # Stop streaming
+        pipeline.stop()
+
+    finally:
+
+        # Stop streaming
+        pipeline.stop()
+
 if __name__ == "__main__":
     # Load mtx and dist
     cv_file1 = cv2.FileStorage("./camera_calibration/charuco_camera_calibration1.yaml", cv2.FILE_STORAGE_READ)
@@ -177,6 +295,11 @@ if __name__ == "__main__":
     cv_file2 = cv2.FileStorage("./camera_calibration/charuco_camera_calibration2.yaml", cv2.FILE_STORAGE_READ)
     mtx2 = cv_file2.getNode("camera_matrix").mat()
     dist2 = cv_file2.getNode("dist_coeff").mat()
+
+    cv_file3 = cv2.FileStorage("./camera_calibration/charuco_camera_calibration_realsense.yaml", cv2.FILE_STORAGE_READ)
+    mtx3 = cv_file3.getNode("camera_matrix").mat()
+    dist3 = cv_file3.getNode("dist_coeff").mat()
+
 
      # Connect to robot
     robot = Robot.RPC('192.168.58.2')
@@ -208,14 +331,17 @@ if __name__ == "__main__":
     p1 = multiprocessing.Process(target=process_robot_control, args=(robot,control))
     p2 = multiprocessing.Process(target=process_camera, args=(0, robot, mtx1, dist1))
     p3 = multiprocessing.Process(target=process_camera, args=(2, robot, mtx2, dist2))
+    p4 = multiprocessing.Process(target=realsense_camera, args=(4, robot, mtx3, dist3))
     processes.append(p1)
     processes.append(p2)
     processes.append(p3)
+    processes.append(p4)
 
     p1.start()
-    time.sleep(2)
+    #time.sleep(2)
     p2.start()
     p3.start()
+    p4.start()
 
 
     # Wait for all processes to finish

@@ -48,7 +48,7 @@ transformation_matrix[:3, 3] = T
 
 
 M1 = np.identity(4)
-M1[:3, 3] = [0, 0, 0]
+M1[:3, 3] = [123*2, 123, 0]
 resultM = np.dot(transformation_matrix, M1)
 print(resultM)
 resultT = resultM[:3, 3]

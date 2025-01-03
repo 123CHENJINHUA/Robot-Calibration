@@ -15,7 +15,7 @@ from cv2 import aruco
 
 # This requires a set of images or a video taken with the camera you want to calibrate
 # All images used should be the same size, which if taken with the same camera shouldn't be a problem
-images = glob.glob('./camera_calibration/calibration_imgs1/*.png')
+images = glob.glob('./camera_calibration/calibration_realsense/*.png')
 
 # ChAruco board variables
 CHARUCOBOARD_ROWCOUNT = 9
@@ -125,7 +125,7 @@ print(cameraMatrix)
 print(distCoeffs)
 
 # ---------- Saving the calibration -----------------
-cv_file = cv2.FileStorage("./camera_calibration/charuco_camera_calibration1.yaml", cv2.FILE_STORAGE_WRITE)
+cv_file = cv2.FileStorage("./camera_calibration/charuco_camera_calibration_realsense.yaml", cv2.FILE_STORAGE_WRITE)
 cv_file.write("camera_matrix", cameraMatrix)
 cv_file.write("dist_coeff", distCoeffs)
 # note you *release* you don't close() a FileStorage object
