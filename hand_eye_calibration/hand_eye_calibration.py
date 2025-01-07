@@ -54,7 +54,7 @@ filename = open('./hand_eye_calibration/result/RT_'+num+'.txt','w')
 for value in RT:
     filename.write(str(value))
     filename.write('\n\n')
-np.save('./hand_eye_calibration/result/RT_.'+num+'.npy',RT)
+np.save('./hand_eye_calibration/result/RT_'+num+'.npy',RT)
 
 result = []
 for i in range(len(R_all_end_to_base_1)):
