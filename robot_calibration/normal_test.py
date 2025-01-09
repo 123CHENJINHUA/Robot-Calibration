@@ -9,10 +9,36 @@ from math import *
 from camera import Camera
 
 
-def select_roi(image):
-    roi = cv2.selectROI("Select ROI", image, fromCenter=False, showCrosshair=True)
+def select_roi(camera):
+    # Function to handle mouse events
+    def mouse_callback(event, x, y, flags, param):
+        if event == cv2.EVENT_LBUTTONDOWN:
+            param['center'] = (x, y)
+            param['selected'] = True
+
+    # Create a window and set a mouse callback
+    cv2.namedWindow("Select ROI")
+    params = {'center': None, 'selected': False}
+    cv2.setMouseCallback("Select ROI", mouse_callback, params)
+
+    # Display the image and wait for a mouse click
+    while not params['selected']:
+        color_frame, aligned_depth_frame = camera.get_frames()
+        color_image, depth_image, vertices, vertices_color = camera.process_frames(color_frame, aligned_depth_frame)
+        cv2.imshow("Select ROI", color_image)
+        cv2.waitKey(1)
+
+    # Destroy the window
     cv2.destroyWindow("Select ROI")
-    return roi
+
+    # Get the center point and define the ROI
+    center = params['center']
+    radius = 60
+    roi = (center[0] - radius, center[1] - radius, 2 * radius, 2 * radius)
+
+    intrinsics = aligned_depth_frame.profile.as_video_stream_profile().intrinsics
+    
+    return color_image, depth_image,aligned_depth_frame,intrinsics,roi
 
 # def draw_roi2(image, roi, normal_vector=None):
 #     x, y, w, h = roi

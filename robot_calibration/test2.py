@@ -107,7 +107,7 @@ class Normal_test:
             print("mask_3Dcoord,%f,%f,%f ", mask_3Dcoord[3] * 180/pi , mask_3Dcoord[4] * 180/pi , mask_3Dcoord[5] * 180/pi)
             if cv2.waitKey(1) & 0xFF == ord('q'):
 
-                tvec = np.array([mask_3Dcoord[0],mask_3Dcoord[1],mask_3Dcoord[2]])
+                tvec = np.array([mask_3Dcoord[0],mask_3Dcoord[1],mask_3Dcoord[2]])*1000 #mm
                 rvec = np.array([mask_3Dcoord[3],mask_3Dcoord[4],mask_3Dcoord[5]])
                 R_mask2cam = np.zeros((3, 3), dtype=np.float64)
                 cv2.Rodrigues(rvec, R_mask2cam)

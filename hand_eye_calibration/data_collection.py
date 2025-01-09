@@ -284,7 +284,7 @@ def realsense_camera(camera_id,robot, mtx, dist):
     finally:
 
         # Stop streaming
-        pipeline.stop()
+        print("finish!")
 
 if __name__ == "__main__":
     # Load mtx and dist
@@ -329,18 +329,18 @@ if __name__ == "__main__":
     processes = []
 
     p1 = multiprocessing.Process(target=process_robot_control, args=(robot,control))
-    p2 = multiprocessing.Process(target=process_camera, args=(0, robot, mtx1, dist1))
-    p3 = multiprocessing.Process(target=process_camera, args=(2, robot, mtx2, dist2))
+    # p2 = multiprocessing.Process(target=process_camera, args=(0, robot, mtx1, dist1))
+    # p3 = multiprocessing.Process(target=process_camera, args=(2, robot, mtx2, dist2))
     p4 = multiprocessing.Process(target=realsense_camera, args=(4, robot, mtx3, dist3))
     processes.append(p1)
-    processes.append(p2)
-    processes.append(p3)
+    # processes.append(p2)
+    # processes.append(p3)
     processes.append(p4)
 
     p1.start()
     #time.sleep(2)
-    p2.start()
-    p3.start()
+    # p2.start()
+    # p3.start()
     p4.start()
 
 

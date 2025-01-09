@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 from math import *
 
-num = '2'
+num = '4'
 T_list = np.load('./hand_eye_calibration/data/T_list_'+num+'.npy')
 R_list = np.load('./hand_eye_calibration/data/R_list_'+num+'.npy')
 Robot_data = np.load('./hand_eye_calibration/data/Robot_data_'+num+'.npy')
