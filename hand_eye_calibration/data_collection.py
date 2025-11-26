@@ -47,7 +47,6 @@ def process_camera(camera_id1, camera_id2, mtx1, dist1, mtx2, dist2, robot1, rob
     config.enable_stream(rs.stream.depth, 640, 480, rs.format.z16, 30)
     config.enable_stream(rs.stream.color, 640, 480, rs.format.bgr8, 30)
 
-    pipeline.start(config)
     profile = pipeline.start(config)
     color_profile = rs.video_stream_profile(profile.get_stream(rs.stream.color))
     intrinsics = color_profile.get_intrinsics()
@@ -67,16 +66,17 @@ def process_camera(camera_id1, camera_id2, mtx1, dist1, mtx2, dist2, robot1, rob
         ret1, frame1 = cap1.read()
         ret2, frame2 = cap2.read()
 
-        frame_copy1 = frame1.copy()
-        frame_copy2 = frame2.copy()
-
         frames = pipeline.wait_for_frames()
         frame3 = frames.get_color_frame()
 
-        if not frame1 or not frame2 or not frame3:
+        # check read success explicitly (avoid truth-testing arrays)
+        if not ret1 or not ret2 or frame3 is None:
             print("no frame")
             continue
 
+        # Only copy/convert frames after verifying they're valid
+        frame_copy1 = frame1.copy()
+        frame_copy2 = frame2.copy()
         frame3 = np.asanyarray(frame3.get_data())
         frame_copy3 = frame3.copy()
 
@@ -87,7 +87,7 @@ def process_camera(camera_id1, camera_id2, mtx1, dist1, mtx2, dist2, robot1, rob
 
         # set dictionary size depending on the aruco marker selected
         aruco_dict = aruco.getPredefinedDictionary(aruco.DICT_6X6_250)
-        board = cv2.aruco.CharucoBoard((3, 3), 0.041, 0.030, aruco_dict)
+        board = cv2.aruco.CharucoBoard((3, 3), 0.066, 0.049, aruco_dict)
         # detector parameters can be set here (List of detection parameters[3])
         parameters = aruco.DetectorParameters()
         parameters.adaptiveThreshConstant = 10
@@ -100,9 +100,9 @@ def process_camera(camera_id1, camera_id2, mtx1, dist1, mtx2, dist2, robot1, rob
         # font for displaying text (below)
         font = cv2.FONT_HERSHEY_SIMPLEX
 
-        # check if the ids list is not empty
-        # if no check is added the code will crash
-        if np.all(ids1 != None and ids2 != None and ids3 != None):
+        # check if the ids lists are not None (and contain elements)
+        # `detectMarkers` returns None for ids when no markers are found
+        if ids1 is not None and ids2 is not None and ids3 is not None:
 
             # draw a square around the markers
             aruco.drawDetectedMarkers(frame_copy1, corners1)
@@ -148,13 +148,16 @@ def process_camera(camera_id1, camera_id2, mtx1, dist1, mtx2, dist2, robot1, rob
                     cv2.putText(frame_copy2, "No Ids", (0, 64), font, 1, (0, 255, 0), 2, cv2.LINE_AA)
                     cv2.putText(frame_copy3, "No Ids", (0, 64), font, 1, (0, 255, 0), 2, cv2.LINE_AA)
 
-        # display the resulting frame
-        frame_copy1 = cv2.resize(frame_copy1,(frame_copy1.shape[1]//2, frame_copy1.shape[0]//2))
-        cv2.imshow('frame_'+str(camera_id1), frame_copy1)
-        frame_copy2 = cv2.resize(frame_copy2,(frame_copy2.shape[1]//2, frame_copy2.shape[0]//2))
-        cv2.imshow('frame_'+str(camera_id2), frame_copy2)
-        frame_copy3 = cv2.resize(frame_copy3,(frame_copy3.shape[1]//2, frame_copy3.shape[0]//2))
-        cv2.imshow('frame_realsense', frame_copy3)
+        # resize each frame to the same display size and merge horizontally
+        disp_size = (320, 240)  # (width, height) for display
+        frame_disp1 = cv2.resize(frame_copy1, disp_size)
+        frame_disp2 = cv2.resize(frame_copy2, disp_size)
+        frame_disp3 = cv2.resize(frame_copy3, disp_size)
+
+        # Concatenate horizontally and show in one window
+        merged = np.hstack((frame_disp1, frame_disp2, frame_disp3))
+        cv2.imshow('merged', merged)
+
         k = cv2.waitKey(1)
         if k == 27:
             break
@@ -264,4 +267,4 @@ if __name__ == "__main__":
     robot1 = Robot.RPC('192.168.57.2')
     robot2 = Robot.RPC('192.168.57.3')
 
-    process_camera(0, 1, mtx1, dist1, mtx2, dist2, robot1, robot2)
+    process_camera(6, 8, mtx1, dist1, mtx2, dist2, robot1, robot2)
