@@ -1,0 +1,267 @@
+"""
+Framework   : OpenCV Aruco
+Description : Calibration of camera and using that for finding pose of multiple markers
+Status      : Working
+References  :
+    1) https://docs.opencv.org/3.4.0/d5/dae/tutorial_aruco_detection.html
+    2) https://docs.opencv.org/3.4.3/dc/dbb/tutorial_py_calibration.html
+    3) https://docs.opencv.org/3.1.0/d5/dae/tutorial_aruco_detection.html
+"""
+
+import numpy as np
+import cv2
+import cv2.aruco as aruco
+from fairino import Robot
+import time
+import multiprocessing
+import pyrealsense2 as rs
+
+def process_camera(camera_id1, camera_id2, mtx1, dist1, mtx2, dist2, robot1, robot2):
+
+    robot_pos1 = []
+    robot_pos2 = []
+    R1_list = []
+    T1_list = []
+    R2_list = []
+    T2_list = []
+    R3_list = []
+    T3_list = []
+
+    cap1 = cv2.VideoCapture(camera_id1)
+    cap2 = cv2.VideoCapture(camera_id2)
+    width = 640
+    height = 480
+    fps = 30
+    cap1.set(3, width)  #设置宽度
+    cap1.set(4, height)  #设置长度
+    cap1.set(5, fps)  
+    cap1.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'))
+
+    cap2.set(3, width)  #设置宽度
+    cap2.set(4, height)  #设置长度
+    cap2.set(5, fps)  
+    cap2.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'))
+
+    pipeline = rs.pipeline()
+    config = rs.config()
+    config.enable_stream(rs.stream.depth, 640, 480, rs.format.z16, 30)
+    config.enable_stream(rs.stream.color, 640, 480, rs.format.bgr8, 30)
+
+    pipeline.start(config)
+    profile = pipeline.start(config)
+    color_profile = rs.video_stream_profile(profile.get_stream(rs.stream.color))
+    intrinsics = color_profile.get_intrinsics()
+    mtx3 = np.array([[intrinsics.fx, 0, intrinsics.ppx],
+                    [0, intrinsics.fy, intrinsics.ppy],
+                    [0, 0, 1]])
+    dist3 = np.array(intrinsics.coeffs, dtype=np.float32)
+
+    ###------------------ ARUCO TRACKER ---------------------------
+    while (True):
+
+        
+        ret_org1 = robot1.GetActualTCPPose()
+        ret_org2 = robot2.GetActualTCPPose()
+        # print(ret_org[1])
+
+        ret1, frame1 = cap1.read()
+        ret2, frame2 = cap2.read()
+
+        frame_copy1 = frame1.copy()
+        frame_copy2 = frame2.copy()
+
+        frames = pipeline.wait_for_frames()
+        frame3 = frames.get_color_frame()
+
+        if not frame1 or not frame2 or not frame3:
+            print("no frame")
+            continue
+
+        frame3 = np.asanyarray(frame3.get_data())
+        frame_copy3 = frame3.copy()
+
+        # operations on the frame
+        gray1 = cv2.cvtColor(frame1, cv2.COLOR_BGR2GRAY)
+        gray2 = cv2.cvtColor(frame2, cv2.COLOR_BGR2GRAY)
+        gray3 = cv2.cvtColor(frame3, cv2.COLOR_BGR2GRAY)
+
+        # set dictionary size depending on the aruco marker selected
+        aruco_dict = aruco.getPredefinedDictionary(aruco.DICT_6X6_250)
+        board = cv2.aruco.CharucoBoard((3, 3), 0.041, 0.030, aruco_dict)
+        # detector parameters can be set here (List of detection parameters[3])
+        parameters = aruco.DetectorParameters()
+        parameters.adaptiveThreshConstant = 10
+
+        # lists of ids and the corners belonging to each id
+        corners1, ids1, rejectedImgPoints = aruco.detectMarkers(gray1, aruco_dict, parameters=parameters)
+        corners2, ids2, rejectedImgPoints = aruco.detectMarkers(gray2, aruco_dict, parameters=parameters)
+        corners3, ids3, rejectedImgPoints = aruco.detectMarkers(gray3, aruco_dict, parameters=parameters)
+
+        # font for displaying text (below)
+        font = cv2.FONT_HERSHEY_SIMPLEX
+
+        # check if the ids list is not empty
+        # if no check is added the code will crash
+        if np.all(ids1 != None and ids2 != None and ids3 != None):
+
+            # draw a square around the markers
+            aruco.drawDetectedMarkers(frame_copy1, corners1)
+            aruco.drawDetectedMarkers(frame_copy2, corners2)
+            aruco.drawDetectedMarkers(frame_copy3, corners3)
+
+            retval1, charucoCorners1, charucoIds1 = cv2.aruco.interpolateCornersCharuco(corners1, ids1, frame_copy1, board)
+            retval2, charucoCorners2, charucoIds2 = cv2.aruco.interpolateCornersCharuco(corners2, ids2, frame_copy2, board)
+            retval3, charucoCorners3, charucoIds3 = cv2.aruco.interpolateCornersCharuco(corners3, ids3, frame_copy3, board)
+            if retval1 and retval2 and retval3:
+                retval1, rvec_1, tvec_1 = cv2.aruco.estimatePoseCharucoBoard(charucoCorners1, charucoIds1, board, mtx1, dist1, None, None)
+                retval2, rvec_2, tvec_2 = cv2.aruco.estimatePoseCharucoBoard(charucoCorners2, charucoIds2, board, mtx2, dist2, None, None)
+                retval3, rvec_3, tvec_3 = cv2.aruco.estimatePoseCharucoBoard(charucoCorners3, charucoIds3, board, mtx3, dist3, None, None)
+
+                # If pose estimation is successful, draw the axis
+                if retval1 and retval2 and retval3:
+                    cv2.drawFrameAxes(frame_copy1, mtx1, dist1, rvec_1, tvec_1, length=0.05, thickness=2)
+                    cv2.drawFrameAxes(frame_copy2, mtx2, dist2, rvec_2, tvec_2, length=0.05, thickness=2)
+                    cv2.drawFrameAxes(frame_copy3, mtx3, dist3, rvec_3, tvec_3, length=0.05, thickness=2)
+
+                    R_mask2cam = np.zeros((3, 3), dtype=np.float64)
+                    cv2.Rodrigues(rvec_1, R_mask2cam)
+                    R1_list.append(R_mask2cam)
+                    T1_list.append(tvec_1)
+                    R_mask2cam = np.zeros((3, 3), dtype=np.float64)
+                    cv2.Rodrigues(rvec_2, R_mask2cam)
+                    R2_list.append(R_mask2cam)
+                    T2_list.append(tvec_2)
+                    R_mask2cam = np.zeros((3, 3), dtype=np.float64)
+                    cv2.Rodrigues(rvec_3, R_mask2cam)
+                    R3_list.append(R_mask2cam)
+                    T3_list.append(tvec_3)
+
+                    # If Aruco mark detected well, record the TCP data.
+                    ret1 = ret_org1
+                    robot_pos1.append(ret1[1])
+                    ret2 = ret_org2
+                    robot_pos2.append(ret2[1])
+
+                else:
+                    # code to show 'No Ids' when no markers are found
+                    cv2.putText(frame_copy1, "No Ids", (0, 64), font, 1, (0, 255, 0), 2, cv2.LINE_AA)
+                    cv2.putText(frame_copy2, "No Ids", (0, 64), font, 1, (0, 255, 0), 2, cv2.LINE_AA)
+                    cv2.putText(frame_copy3, "No Ids", (0, 64), font, 1, (0, 255, 0), 2, cv2.LINE_AA)
+
+        # display the resulting frame
+        frame_copy1 = cv2.resize(frame_copy1,(frame_copy1.shape[1]//2, frame_copy1.shape[0]//2))
+        cv2.imshow('frame_'+str(camera_id1), frame_copy1)
+        frame_copy2 = cv2.resize(frame_copy2,(frame_copy2.shape[1]//2, frame_copy2.shape[0]//2))
+        cv2.imshow('frame_'+str(camera_id2), frame_copy2)
+        frame_copy3 = cv2.resize(frame_copy3,(frame_copy3.shape[1]//2, frame_copy3.shape[0]//2))
+        cv2.imshow('frame_realsense', frame_copy3)
+        k = cv2.waitKey(1)
+        if k == 27:
+            break
+
+    # When everything done, release the capture
+    np.save(f'./hand_eye_calibration/data/R_list_1.npy', R1_list)
+    np.save(f'./hand_eye_calibration/data/T_list_1.npy', T1_list)
+    np.save(f'./hand_eye_calibration/data/R_list_2.npy', R2_list)
+    np.save(f'./hand_eye_calibration/data/T_list_2.npy', T2_list)
+    np.save(f'./hand_eye_calibration/data/R_list_3.npy', R3_list)
+    np.save(f'./hand_eye_calibration/data/T_list_3.npy', T3_list)
+    filename_R1 = open(f'./hand_eye_calibration/data/R_list_1.txt', 'w')
+    filename_T1 = open(f'./hand_eye_calibration/data/T_list_1.txt', 'w')
+    filename_R2 = open(f'./hand_eye_calibration/data/R_list_2.txt', 'w')
+    filename_T2 = open(f'./hand_eye_calibration/data/T_list_2.txt', 'w')
+    filename_R3 = open(f'./hand_eye_calibration/data/R_list_3.txt', 'w')
+    filename_T3 = open(f'./hand_eye_calibration/data/T_list_3.txt', 'w')
+
+    for value in R1_list:
+        filename_R1.write(str(value))
+        filename_R1.write('\n')
+    for value in T1_list:
+        filename_T1.write(str(value[0][0]))
+        filename_T1.write(', ')
+        filename_T1.write(str(value[1][0]))
+        filename_T1.write(', ')
+        filename_T1.write(str(value[2][0]))
+        filename_T1.write('\n')
+
+    for value in R2_list:
+        filename_R2.write(str(value))
+        filename_R2.write('\n')
+    for value in T2_list:
+        filename_T2.write(str(value[0][0]))
+        filename_T2.write(', ')
+        filename_T2.write(str(value[1][0]))
+        filename_T2.write(', ')
+        filename_T2.write(str(value[2][0]))
+        filename_T2.write('\n')
+
+    for value in R3_list:
+        filename_R3.write(str(value))
+        filename_R3.write('\n')
+    for value in T3_list:
+        filename_T3.write(str(value[0][0]))
+        filename_T3.write(', ')
+        filename_T3.write(str(value[1][0]))
+        filename_T3.write(', ')
+        filename_T3.write(str(value[2][0]))
+        filename_T3.write('\n')
+
+
+
+    np.save(f'./hand_eye_calibration/data/Robot_data_1.npy', robot_pos1)
+    np.save(f'./hand_eye_calibration/data/Robot_data_2.npy', robot_pos2)
+    filename1 = open(f'./hand_eye_calibration/data/Robot_data_1.txt', 'w')
+    filename2 = open(f'./hand_eye_calibration/data/Robot_data_2.txt', 'w')
+
+    for value in robot_pos1:
+        filename1.write(str(value[0]))
+        filename1.write(', ')
+        filename1.write(str(value[1]))
+        filename1.write(', ')
+        filename1.write(str(value[2]))
+        filename1.write(', ')
+        filename1.write(str(value[3]))
+        filename1.write(', ')
+        filename1.write(str(value[4]))
+        filename1.write(', ')
+        filename1.write(str(value[5]))
+        filename1.write('\n')
+
+    for value in robot_pos2:
+        filename2.write(str(value[0]))
+        filename2.write(', ')
+        filename2.write(str(value[1]))
+        filename2.write(', ')
+        filename2.write(str(value[2]))
+        filename2.write(', ')
+        filename2.write(str(value[3]))
+        filename2.write(', ')
+        filename2.write(str(value[4]))
+        filename2.write(', ')
+        filename2.write(str(value[5]))
+        filename2.write('\n')
+
+    cv2.destroyAllWindows()
+    pipeline.stop()
+
+
+if __name__ == "__main__":
+    # Load mtx and dist
+    cv_file1 = cv2.FileStorage("./camera_calibration/charuco_camera_calibration1.yaml", cv2.FILE_STORAGE_READ)
+    mtx1 = cv_file1.getNode("camera_matrix").mat()
+    dist1 = cv_file1.getNode("dist_coeff").mat()
+
+    cv_file2 = cv2.FileStorage("./camera_calibration/charuco_camera_calibration2.yaml", cv2.FILE_STORAGE_READ)
+    mtx2 = cv_file2.getNode("camera_matrix").mat()
+    dist2 = cv_file2.getNode("dist_coeff").mat()
+
+    cv_file3 = cv2.FileStorage("./camera_calibration/charuco_camera_calibration_realsense.yaml", cv2.FILE_STORAGE_READ)
+    mtx3 = cv_file3.getNode("camera_matrix").mat()
+    dist3 = cv_file3.getNode("dist_coeff").mat()
+
+
+     # Connect to robot
+    robot1 = Robot.RPC('192.168.57.2')
+    robot2 = Robot.RPC('192.168.57.3')
+
+    process_camera(0, 1, mtx1, dist1, mtx2, dist2, robot1, robot2)
