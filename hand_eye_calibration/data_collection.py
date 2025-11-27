@@ -267,4 +267,7 @@ if __name__ == "__main__":
     robot1 = Robot.RPC('192.168.57.2')
     robot2 = Robot.RPC('192.168.57.3')
 
-    process_camera(6, 8, mtx1, dist1, mtx2, dist2, robot1, robot2)
+    camera1 = 8
+    camera2 = 6
+
+    process_camera(camera1, camera2, mtx1, dist1, mtx2, dist2, robot1, robot2)
