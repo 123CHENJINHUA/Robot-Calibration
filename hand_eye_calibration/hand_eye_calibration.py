@@ -83,8 +83,34 @@ def process_eye_in_hand(R_list,T_list,Robot_data,num):
     return result
 
 
-def se3_average(RT_list):
-    # 使用李代数平均：旋转用Rodrigues向量平均，平移取均值
+def se3_average(RT_list, remove_outliers=True, outlier_method='iqr', threshold=1.5):
+    """
+    SE3 average using Lie algebra, with optional outlier removal
+    
+    Parameters:
+    -----------
+    RT_list : list of 4x4 np.array
+        List of transformation matrices
+    remove_outliers : bool
+        Whether to remove outliers before averaging
+    outlier_method : str
+        'iqr' (Interquartile Range) or 'sigma' (3-sigma rule)
+    threshold : float
+        For 'iqr': IQR multiplier (default 1.5)
+        For 'sigma': sigma multiplier (default 3.0)
+    
+    Returns:
+    --------
+    RT_mean : 4x4 np.array
+        Average transformation matrix
+    """
+    if len(RT_list) == 0:
+        raise ValueError("RT_list is empty")
+    
+    if len(RT_list) == 1:
+        return RT_list[0]
+    
+    # Extract rotation vectors and translations
     rotvecs = []
     translations = []
     for RT in RT_list:
@@ -93,13 +119,101 @@ def se3_average(RT_list):
         rotvec, _ = cv2.Rodrigues(R)
         rotvecs.append(rotvec.reshape(3))
         translations.append(t.reshape(3))
-    rotvec_mean = np.mean(np.stack(rotvecs, axis=0), axis=0)
-    t_mean = np.mean(np.stack(translations, axis=0), axis=0)
+    
+    rotvecs = np.array(rotvecs)
+    translations = np.array(translations)
+    
+    # Remove outliers if requested
+    if remove_outliers and len(RT_list) > 3:
+        valid_indices = detect_outliers(rotvecs, translations, method=outlier_method, threshold=threshold)
+        
+        if len(valid_indices) == 0:
+            print("Warning: All samples detected as outliers. Using all data.")
+            valid_indices = list(range(len(RT_list)))
+        elif len(valid_indices) < len(RT_list):
+            print(f"Outlier removal: {len(RT_list) - len(valid_indices)} outliers removed, {len(valid_indices)} samples remaining")
+        
+        rotvecs = rotvecs[valid_indices]
+        translations = translations[valid_indices]
+    
+    # Calculate mean
+    rotvec_mean = np.mean(rotvecs, axis=0)
+    t_mean = np.mean(translations, axis=0)
+    
     R_mean, _ = cv2.Rodrigues(rotvec_mean.reshape(3, 1))
     RT_mean = np.eye(4)
     RT_mean[:3, :3] = R_mean
     RT_mean[:3, 3] = t_mean
+    
     return RT_mean
+
+
+def detect_outliers(rotvecs, translations, method='iqr', threshold=1.5):
+    """
+    Detect outliers in rotation vectors and translations
+    
+    Parameters:
+    -----------
+    rotvecs : np.array (N, 3)
+        Rotation vectors
+    translations : np.array (N, 3)
+        Translation vectors
+    method : str
+        'iqr' (Interquartile Range) or 'sigma' (3-sigma rule)
+    threshold : float
+        For 'iqr': IQR multiplier (default 1.5)
+        For 'sigma': sigma multiplier (default 3.0)
+    
+    Returns:
+    --------
+    valid_indices : list
+        Indices of valid (non-outlier) samples
+    """
+    n_samples = len(rotvecs)
+    
+    if method == 'iqr':
+        # Use IQR method
+        valid_mask = np.ones(n_samples, dtype=bool)
+        
+        # Check rotation vectors
+        rotvec_norms = np.linalg.norm(rotvecs, axis=1)
+        q1, q3 = np.percentile(rotvec_norms, [25, 75])
+        iqr = q3 - q1
+        lower_bound = q1 - threshold * iqr
+        upper_bound = q3 + threshold * iqr
+        valid_mask &= (rotvec_norms >= lower_bound) & (rotvec_norms <= upper_bound)
+        
+        # Check translations
+        translation_norms = np.linalg.norm(translations, axis=1)
+        q1, q3 = np.percentile(translation_norms, [25, 75])
+        iqr = q3 - q1
+        lower_bound = q1 - threshold * iqr
+        upper_bound = q3 + threshold * iqr
+        valid_mask &= (translation_norms >= lower_bound) & (translation_norms <= upper_bound)
+        
+    elif method == 'sigma':
+        # Use 3-sigma rule (or custom sigma multiplier)
+        valid_mask = np.ones(n_samples, dtype=bool)
+        
+        # Check rotation vectors
+        rotvec_norms = np.linalg.norm(rotvecs, axis=1)
+        mean_rot = np.mean(rotvec_norms)
+        std_rot = np.std(rotvec_norms)
+        if std_rot > 1e-6:
+            valid_mask &= np.abs(rotvec_norms - mean_rot) <= threshold * std_rot
+        
+        # Check translations
+        translation_norms = np.linalg.norm(translations, axis=1)
+        mean_trans = np.mean(translation_norms)
+        std_trans = np.std(translation_norms)
+        if std_trans > 1e-6:
+            valid_mask &= np.abs(translation_norms - mean_trans) <= threshold * std_trans
+    
+    else:
+        raise ValueError(f"Unknown outlier detection method: {method}")
+    
+    valid_indices = np.where(valid_mask)[0]
+    return valid_indices
 
 def main():
 
@@ -156,9 +270,15 @@ def main():
         filename.write('\n\n')
     filename.close()
 
-    # 对多次结果进行李代数平均，得到更精确的RT
-    RT_depth_cam_to_base_mean = se3_average(RT_depth_cam_to_base_list)
-    RT_base2_to_base1_mean = se3_average(RT_base2_to_base1_list)
+    # Perform Lie algebra averaging with outlier removal for more accurate RT (iqr/sigma)
+    print("\n=== Calculating depth camera to base transformation (with outlier removal) ===")
+    RT_depth_cam_to_base_mean = se3_average(RT_depth_cam_to_base_list, remove_outliers=True, outlier_method='iqr', threshold=1.5)
+    
+    print("\n=== Calculating base2 to base1 transformation (with outlier removal) ===")
+    RT_base2_to_base1_mean = se3_average(RT_base2_to_base1_list, remove_outliers=True, outlier_method='iqr', threshold=1.5)
+
+    np.save('./hand_eye_calibration/result/RT_depth_cam_to_base.npy', RT_depth_cam_to_base_list)
+    np.save('./hand_eye_calibration/result/RT_base2_to_base1.npy', RT_base2_to_base1_list)
 
     np.save('./hand_eye_calibration/result/RT_depth_cam_to_base_mean.npy', RT_depth_cam_to_base_mean)
     np.save('./hand_eye_calibration/result/RT_base2_to_base1_mean.npy', RT_base2_to_base1_mean)
