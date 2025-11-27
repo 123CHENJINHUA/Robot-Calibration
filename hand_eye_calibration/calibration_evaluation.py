@@ -80,7 +80,7 @@ def plot_error_distribution(errors, title, xlabel, filename):
     # Error vs index plot
     plt.subplot(1, 2, 1)
     plt.plot(errors, 'b.-')
-    plt.title(f'{title} - Error vs Index')
+    plt.title(f'{title}')
     plt.xlabel('Index')
     plt.ylabel(xlabel)
     plt.grid(True)
@@ -88,7 +88,7 @@ def plot_error_distribution(errors, title, xlabel, filename):
     # Error histogram
     plt.subplot(1, 2, 2)
     plt.hist(errors, bins=20, alpha=0.7, edgecolor='black')
-    plt.title(f'{title} - Error Distribution')
+    plt.title(f'{title} - Distribution')
     plt.xlabel(xlabel)
     plt.ylabel('Frequency')
     plt.grid(True, alpha=0.3)
@@ -133,14 +133,14 @@ def evaluate_against_mean(RT_list, RT_mean, name):
     
     # Plot error distribution
     plot_error_distribution(position_errors, 
-                          f'{name} Position Error vs Mean', 
+                          f'{name} Position Error', 
                           'Position Error (mm)',
-                          f'./hand_eye_calibration/result/{name.replace(" ", "_")}_vs_mean_position_error.png')
+                          f'./hand_eye_calibration/result/{name.replace(" ", "_")}_position_error.png')
     
     plot_error_distribution(rotation_errors, 
-                          f'{name} Rotation Error vs Mean', 
+                          f'{name} Rotation Error', 
                           'Rotation Error (deg)',
-                          f'./hand_eye_calibration/result/{name.replace(" ", "_")}_vs_mean_rotation_error.png')
+                          f'./hand_eye_calibration/result/{name.replace(" ", "_")}_rotation_error.png')
     
     return pos_stats, rot_stats
 
