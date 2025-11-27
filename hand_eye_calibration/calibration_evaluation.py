@@ -183,14 +183,17 @@ def main():
     
     try:
         # Load calibration results
-        RT_depth_cam_to_base_list = np.load('./hand_eye_calibration/result/RT_depth_cam_to_base.npy')
+        RT_depth_cam_to_base1_list = np.load('./hand_eye_calibration/result/RT_depth_cam_to_base1.npy')
+        RT_depth_cam_to_base2_list = np.load('./hand_eye_calibration/result/RT_depth_cam_to_base2.npy')
         RT_base2_to_base1_list = np.load('./hand_eye_calibration/result/RT_base2_to_base1.npy')
         
-        RT_depth_cam_to_base_mean = np.load('./hand_eye_calibration/result/RT_depth_cam_to_base_mean.npy')
+        RT_depth_cam_to_base1_mean = np.load('./hand_eye_calibration/result/RT_depth_cam_to_base1_mean.npy')
+        RT_depth_cam_to_base2_mean = np.load('./hand_eye_calibration/result/RT_depth_cam_to_base2_mean.npy')
         RT_base2_to_base1_mean = np.load('./hand_eye_calibration/result/RT_base2_to_base1_mean.npy')
         
         print(f"Successfully loaded calibration results:")
-        print(f"  Depth camera to base transformations: {len(RT_depth_cam_to_base_list)} measurements")
+        print(f"  Depth camera to base1 transformations: {len(RT_depth_cam_to_base1_list)} measurements")
+        print(f"  Depth camera to base2 transformations: {len(RT_depth_cam_to_base2_list)} measurements")
         print(f"  Base2 to base1 transformations: {len(RT_base2_to_base1_list)} measurements")
         
     except FileNotFoundError as e:
@@ -201,11 +204,13 @@ def main():
         return
     
     # Analyze mean transformation matrices
-    analyze_transformation_matrix(RT_depth_cam_to_base_mean, "Depth Camera to Base (Mean)")
+    analyze_transformation_matrix(RT_depth_cam_to_base1_mean, "Depth Camera to Base1 (Mean)")
+    analyze_transformation_matrix(RT_depth_cam_to_base2_mean, "Depth Camera to Base2 (Mean)")
     analyze_transformation_matrix(RT_base2_to_base1_mean, "Base2 to Base1 (Mean)")
     
-    # Evaluate errors against mean values only
-    depth_cam_vs_mean = evaluate_against_mean(RT_depth_cam_to_base_list, RT_depth_cam_to_base_mean, "Depth Camera to Base")
+    # Evaluate errors against mean values
+    depth_cam_base1_vs_mean = evaluate_against_mean(RT_depth_cam_to_base1_list, RT_depth_cam_to_base1_mean, "Depth Camera to Base1")
+    depth_cam_base2_vs_mean = evaluate_against_mean(RT_depth_cam_to_base2_list, RT_depth_cam_to_base2_mean, "Depth Camera to Base2")
     base_transform_vs_mean = evaluate_against_mean(RT_base2_to_base1_list, RT_base2_to_base1_mean, "Base2 to Base1")
     
     # Save evaluation report
@@ -214,22 +219,34 @@ def main():
         f.write("=" * 50 + "\n\n")
         
         f.write("1. Data Overview\n")
-        f.write(f"   Depth camera to base transformations: {len(RT_depth_cam_to_base_list)} measurements\n")
+        f.write(f"   Depth camera to base1 transformations: {len(RT_depth_cam_to_base1_list)} measurements\n")
+        f.write(f"   Depth camera to base2 transformations: {len(RT_depth_cam_to_base2_list)} measurements\n")
         f.write(f"   Base2 to base1 transformations: {len(RT_base2_to_base1_list)} measurements\n\n")
         
-        if depth_cam_vs_mean:
-            f.write("2. Depth Camera to Base Transformation Error Against Mean\n")
-            f.write(f"   Position error mean: {depth_cam_vs_mean[0]['mean']:.3f} mm\n")
-            f.write(f"   Position error std: {depth_cam_vs_mean[0]['std']:.3f} mm\n")
-            f.write(f"   Position error RMS: {depth_cam_vs_mean[0]['rms']:.3f} mm\n")
-            f.write(f"   Position error max: {depth_cam_vs_mean[0]['max']:.3f} mm\n")
-            f.write(f"   Rotation error mean: {depth_cam_vs_mean[1]['mean']:.3f} deg\n")
-            f.write(f"   Rotation error std: {depth_cam_vs_mean[1]['std']:.3f} deg\n")
-            f.write(f"   Rotation error RMS: {depth_cam_vs_mean[1]['rms']:.3f} deg\n")
-            f.write(f"   Rotation error max: {depth_cam_vs_mean[1]['max']:.3f} deg\n\n")
+        if depth_cam_base1_vs_mean:
+            f.write("2. Depth Camera to Base1 Transformation Error Against Mean\n")
+            f.write(f"   Position error mean: {depth_cam_base1_vs_mean[0]['mean']:.3f} mm\n")
+            f.write(f"   Position error std: {depth_cam_base1_vs_mean[0]['std']:.3f} mm\n")
+            f.write(f"   Position error RMS: {depth_cam_base1_vs_mean[0]['rms']:.3f} mm\n")
+            f.write(f"   Position error max: {depth_cam_base1_vs_mean[0]['max']:.3f} mm\n")
+            f.write(f"   Rotation error mean: {depth_cam_base1_vs_mean[1]['mean']:.3f} deg\n")
+            f.write(f"   Rotation error std: {depth_cam_base1_vs_mean[1]['std']:.3f} deg\n")
+            f.write(f"   Rotation error RMS: {depth_cam_base1_vs_mean[1]['rms']:.3f} deg\n")
+            f.write(f"   Rotation error max: {depth_cam_base1_vs_mean[1]['max']:.3f} deg\n\n")
+        
+        if depth_cam_base2_vs_mean:
+            f.write("3. Depth Camera to Base2 Transformation Error Against Mean\n")
+            f.write(f"   Position error mean: {depth_cam_base2_vs_mean[0]['mean']:.3f} mm\n")
+            f.write(f"   Position error std: {depth_cam_base2_vs_mean[0]['std']:.3f} mm\n")
+            f.write(f"   Position error RMS: {depth_cam_base2_vs_mean[0]['rms']:.3f} mm\n")
+            f.write(f"   Position error max: {depth_cam_base2_vs_mean[0]['max']:.3f} mm\n")
+            f.write(f"   Rotation error mean: {depth_cam_base2_vs_mean[1]['mean']:.3f} deg\n")
+            f.write(f"   Rotation error std: {depth_cam_base2_vs_mean[1]['std']:.3f} deg\n")
+            f.write(f"   Rotation error RMS: {depth_cam_base2_vs_mean[1]['rms']:.3f} deg\n")
+            f.write(f"   Rotation error max: {depth_cam_base2_vs_mean[1]['max']:.3f} deg\n\n")
         
         if base_transform_vs_mean:
-            f.write("3. Base2 to Base1 Transformation Error Against Mean\n")
+            f.write("4. Base2 to Base1 Transformation Error Against Mean\n")
             f.write(f"   Position error mean: {base_transform_vs_mean[0]['mean']:.3f} mm\n")
             f.write(f"   Position error std: {base_transform_vs_mean[0]['std']:.3f} mm\n")
             f.write(f"   Position error RMS: {base_transform_vs_mean[0]['rms']:.3f} mm\n")

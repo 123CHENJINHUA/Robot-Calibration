@@ -244,7 +244,8 @@ def main():
         RT_mask_to_depth_cam.append(RT)
     
     # 计算每次的深度相机到基坐标系，以及基坐标系2到基坐标系1，并保存
-    RT_depth_cam_to_base_list = []
+    RT_depth_cam_to_base1_list = []
+    RT_depth_cam_to_base2_list = []
     RT_base2_to_base1_list = []
     for i in range(len(RT_mask_to_depth_cam)):
         # 将 process_eye_in_hand 的3x4补成4x4再参与运算
@@ -253,13 +254,22 @@ def main():
         RT_dcam = RT_mask_to_depth_cam[i]
 
         RT_depth_cam_to_base1 = RT_mtb1 @ np.linalg.inv(RT_dcam)  # 深度相机到基坐标系
+        RT_depth_cam_to_base2 = RT_mtb2 @ np.linalg.inv(RT_dcam)  # 深度相机到基坐标系2
+
         RT_base2_to_base1 = RT_mtb1 @ np.linalg.inv(RT_mtb2)      # 基坐标系2到基坐标系1
 
-        RT_depth_cam_to_base_list.append(RT_depth_cam_to_base1)
+        RT_depth_cam_to_base1_list.append(RT_depth_cam_to_base1)
+        RT_depth_cam_to_base2_list.append(RT_depth_cam_to_base2)
         RT_base2_to_base1_list.append(RT_base2_to_base1)
 
-    filename = open('./hand_eye_calibration/result/RT_depth_cam_to_base'+'.txt','w')
-    for value in RT_depth_cam_to_base_list:
+    filename = open('./hand_eye_calibration/result/RT_depth_cam_to_base1'+'.txt','w')
+    for value in RT_depth_cam_to_base1_list:
+        filename.write(str(value))
+        filename.write('\n\n')
+    filename.close()
+
+    filename = open('./hand_eye_calibration/result/RT_depth_cam_to_base2'+'.txt','w')
+    for value in RT_depth_cam_to_base2_list:
         filename.write(str(value))
         filename.write('\n\n')
     filename.close()
@@ -272,19 +282,26 @@ def main():
 
     # Perform Lie algebra averaging with outlier removal for more accurate RT (iqr/sigma)
     print("\n=== Calculating depth camera to base transformation (with outlier removal) ===")
-    RT_depth_cam_to_base_mean = se3_average(RT_depth_cam_to_base_list, remove_outliers=True, outlier_method='iqr', threshold=1.5)
-    
+    RT_depth_cam_to_base1_mean = se3_average(RT_depth_cam_to_base1_list, remove_outliers=True, outlier_method='iqr', threshold=1.5)
+    RT_depth_cam_to_base2_mean = se3_average(RT_depth_cam_to_base2_list, remove_outliers=True, outlier_method='iqr', threshold=1.5)
+
     print("\n=== Calculating base2 to base1 transformation (with outlier removal) ===")
     RT_base2_to_base1_mean = se3_average(RT_base2_to_base1_list, remove_outliers=True, outlier_method='iqr', threshold=1.5)
 
-    np.save('./hand_eye_calibration/result/RT_depth_cam_to_base.npy', RT_depth_cam_to_base_list)
+    np.save('./hand_eye_calibration/result/RT_depth_cam_to_base1.npy', RT_depth_cam_to_base1_list)
+    np.save('./hand_eye_calibration/result/RT_depth_cam_to_base2.npy', RT_depth_cam_to_base2_list)
     np.save('./hand_eye_calibration/result/RT_base2_to_base1.npy', RT_base2_to_base1_list)
 
-    np.save('./hand_eye_calibration/result/RT_depth_cam_to_base_mean.npy', RT_depth_cam_to_base_mean)
+    np.save('./hand_eye_calibration/result/RT_depth_cam_to_base1_mean.npy', RT_depth_cam_to_base1_mean)
+    np.save('./hand_eye_calibration/result/RT_depth_cam_to_base2_mean.npy', RT_depth_cam_to_base2_mean)
     np.save('./hand_eye_calibration/result/RT_base2_to_base1_mean.npy', RT_base2_to_base1_mean)
 
-    with open('./hand_eye_calibration/result/RT_depth_cam_to_base_mean.txt','w') as f:
-        for row in RT_depth_cam_to_base_mean:
+    with open('./hand_eye_calibration/result/RT_depth_cam_to_base1_mean.txt','w') as f:
+        for row in RT_depth_cam_to_base1_mean:
+            f.write(str(row))
+            f.write('\n\n')
+    with open('./hand_eye_calibration/result/RT_depth_cam_to_base2_mean.txt','w') as f:
+        for row in RT_depth_cam_to_base2_mean:
             f.write(str(row))
             f.write('\n\n')
     with open('./hand_eye_calibration/result/RT_base2_to_base1_mean.txt','w') as f:
