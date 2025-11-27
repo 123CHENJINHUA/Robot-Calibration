@@ -55,10 +55,15 @@ def process_camera(camera_id1, camera_id2, mtx1, dist1, mtx2, dist2, robot1, rob
                     [0, 0, 1]])
     dist3 = np.array(intrinsics.coeffs, dtype=np.float32)
 
+    current_time = time.time()
+    last_time = current_time
+
+    count_data = 0
     ###------------------ ARUCO TRACKER ---------------------------
     while (True):
 
-        
+        current_time = time.time()
+
         ret_org1 = robot1.GetActualTCPPose()
         ret_org2 = robot2.GetActualTCPPose()
         # print(ret_org[1])
@@ -123,24 +128,30 @@ def process_camera(camera_id1, camera_id2, mtx1, dist1, mtx2, dist2, robot1, rob
                     cv2.drawFrameAxes(frame_copy2, mtx2, dist2, rvec_2, tvec_2, length=0.05, thickness=2)
                     cv2.drawFrameAxes(frame_copy3, mtx3, dist3, rvec_3, tvec_3, length=0.05, thickness=2)
 
-                    R_mask2cam = np.zeros((3, 3), dtype=np.float64)
-                    cv2.Rodrigues(rvec_1, R_mask2cam)
-                    R1_list.append(R_mask2cam)
-                    T1_list.append(tvec_1)
-                    R_mask2cam = np.zeros((3, 3), dtype=np.float64)
-                    cv2.Rodrigues(rvec_2, R_mask2cam)
-                    R2_list.append(R_mask2cam)
-                    T2_list.append(tvec_2)
-                    R_mask2cam = np.zeros((3, 3), dtype=np.float64)
-                    cv2.Rodrigues(rvec_3, R_mask2cam)
-                    R3_list.append(R_mask2cam)
-                    T3_list.append(tvec_3)
+                    if current_time - last_time > 0.2:
+                        
+                        last_time = current_time
+                        count_data += 1
+                        print(f"Data count: {count_data}")
 
-                    # If Aruco mark detected well, record the TCP data.
-                    ret1 = ret_org1
-                    robot_pos1.append(ret1[1])
-                    ret2 = ret_org2
-                    robot_pos2.append(ret2[1])
+                        R_mask2cam = np.zeros((3, 3), dtype=np.float64)
+                        cv2.Rodrigues(rvec_1, R_mask2cam)
+                        R1_list.append(R_mask2cam)
+                        T1_list.append(tvec_1)
+                        R_mask2cam = np.zeros((3, 3), dtype=np.float64)
+                        cv2.Rodrigues(rvec_2, R_mask2cam)
+                        R2_list.append(R_mask2cam)
+                        T2_list.append(tvec_2)
+                        R_mask2cam = np.zeros((3, 3), dtype=np.float64)
+                        cv2.Rodrigues(rvec_3, R_mask2cam)
+                        R3_list.append(R_mask2cam)
+                        T3_list.append(tvec_3)
+
+                        # If Aruco mark detected well, record the TCP data.
+                        ret1 = ret_org1
+                        robot_pos1.append(ret1[1])
+                        ret2 = ret_org2
+                        robot_pos2.append(ret2[1])
 
                 else:
                     # code to show 'No Ids' when no markers are found

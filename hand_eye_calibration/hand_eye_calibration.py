@@ -144,14 +144,17 @@ def main():
         RT_depth_cam_to_base_list.append(RT_depth_cam_to_base1)
         RT_base2_to_base1_list.append(RT_base2_to_base1)
 
-        filename = open('./hand_eye_calibration/result/RT_depth_cam_to_base_'+str(i+1)+'.txt','w')
-        for value in RT_depth_cam_to_base1:
-            filename.write(str(value))
-            filename.write('\n\n')
-        for value in RT_base2_to_base1:
-            filename.write(str(value))
-            filename.write('\n\n')
-        filename.close()
+    filename = open('./hand_eye_calibration/result/RT_depth_cam_to_base'+'.txt','w')
+    for value in RT_depth_cam_to_base_list:
+        filename.write(str(value))
+        filename.write('\n\n')
+    filename.close()
+
+    filename = open('./hand_eye_calibration/result/RT_base2_to_base1'+'.txt','w')
+    for value in RT_base2_to_base1_list:
+        filename.write(str(value))
+        filename.write('\n\n')
+    filename.close()
 
     # 对多次结果进行李代数平均，得到更精确的RT
     RT_depth_cam_to_base_mean = se3_average(RT_depth_cam_to_base_list)
