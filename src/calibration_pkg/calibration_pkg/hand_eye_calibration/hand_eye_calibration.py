@@ -2,27 +2,7 @@ import cv2
 import numpy as np
 from math import *
 import os
-
-
-def get_package_source_directory():
-    """
-    Get the source directory of the package, even when running from install directory.
-    """
-    # Get the current file's directory
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    
-    # Check if we're in the install directory
-    if '/install/' in current_dir:
-        # Extract workspace path and navigate to src
-        workspace_path = current_dir.split('/install/')[0]
-        src_path = os.path.join(workspace_path, 'src', 'calibration_pkg', 'calibration_pkg', 'hand_eye_calibration')
-        if os.path.exists(src_path):
-            return src_path
-    
-    # Otherwise, we're already in the source directory
-    return current_dir
-
-
+from pathlib import Path
 
 
 def myRPY2R_robot(x, y, z):
@@ -239,15 +219,30 @@ def detect_outliers(rotvecs, translations, method='iqr', threshold=1.5):
 
 def main():
     
-    # Always use source directory for data files
-    script_dir = get_package_source_directory()
-    data_dir = os.path.join(script_dir, 'data')
-    result_dir = os.path.join(script_dir, 'result')
+    file_path = Path(__file__).resolve()
+    pkg_name = 'calibration_pkg'
+
+    # Prefer saving under the SOURCE workspace: <ws>/src/calibration_pkg/calibration_pkg/hand_eye_calibration/data
+    data_dir = None
+    result_dir = None
+    for p in file_path.parents:
+        if p.name == 'install':
+            ws_root = p.parent  # workspace root
+            data_dir = ws_root / 'src' / pkg_name / pkg_name / 'hand_eye_calibration' / 'data'
+            result_dir = ws_root / 'src' / pkg_name / pkg_name / 'hand_eye_calibration' / 'result'
+            break
+
+    # If not running from install, fall back to package root path
+    if data_dir is None:
+        data_dir = file_path.parent / 'data'
+        result_dir = file_path.parent / 'result'
+    
+    data_dir = str(data_dir)
+    result_dir = str(result_dir)
     
     # Create result directory if it doesn't exist
     os.makedirs(result_dir, exist_ok=True)
     
-    print(f'Source directory: {script_dir}')
     print(f'Reading data from: {data_dir}')
     print(f'Writing results to: {result_dir}')
 

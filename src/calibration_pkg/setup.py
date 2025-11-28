@@ -24,6 +24,7 @@ setup(
     entry_points={
         'console_scripts': [
             'data_collection = calibration_pkg.hand_eye_calibration.data_collection:main',
+            'hand_eye_calibration = calibration_pkg.hand_eye_calibration.hand_eye_calibration:main',
         ],
     },
 )
