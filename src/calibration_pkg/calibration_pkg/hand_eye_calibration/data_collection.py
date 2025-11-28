@@ -213,12 +213,8 @@ def process_camera(node, camera_id1, camera_id2, mtx1, dist1, mtx2, dist2):
             break
 
     # When everything done, release the capture
-    # Always use source directory for data storage
     script_dir = os.path.dirname(os.path.abspath(__file__))
     data_dir = os.path.join(script_dir, 'data')
-    
-    # Create data directory if it doesn't exist
-    os.makedirs(data_dir, exist_ok=True)
     
     np.save(os.path.join(data_dir, 'R_list_1.npy'), R1_list)
     np.save(os.path.join(data_dir, 'T_list_1.npy'), T1_list)
@@ -312,11 +308,10 @@ if __name__ == "__main__":
     # Create the ROS2 node
     node = DataCollectionNode()
     
-    # Always use source directory for calibration files
+    # Get the script directory for proper file paths
+    
     script_dir = os.path.dirname(os.path.abspath(__file__))
     camera_calib_dir = os.path.join(os.path.dirname(script_dir), 'camera_calibration')
-    
-    node.get_logger().info(f'Using calibration files from: {camera_calib_dir}')
     
     # Load mtx and dist
     cv_file1 = cv2.FileStorage(os.path.join(camera_calib_dir, "charuco_camera_calibration1.yaml"), cv2.FILE_STORAGE_READ)
