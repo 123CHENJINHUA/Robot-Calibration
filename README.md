@@ -1,0 +1,1 @@
+export PYTHONPATH=$PYTHONPATH:/home/cjh/anaconda3/envs/facade_pose/lib/python3.10/site-packages
