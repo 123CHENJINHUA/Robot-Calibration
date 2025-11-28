@@ -17,6 +17,7 @@ import rclpy
 from rclpy.node import Node
 from std_msgs.msg import Float64MultiArray
 import os
+from pathlib import Path
 
 class DataCollectionNode(Node):
     def __init__(self):
@@ -213,8 +214,26 @@ def process_camera(node, camera_id1, camera_id2, mtx1, dist1, mtx2, dist2):
             break
 
     # When everything done, release the capture
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    data_dir = os.path.join(script_dir, 'data')
+    
+    file_path = Path(__file__).resolve()
+    pkg_name = 'calibration_pkg'
+
+    # Prefer saving under the SOURCE workspace: <ws>/src/calibration_pkg/calibration_pkg/hand_eye_calibration/data
+    data_dir = None
+    for p in file_path.parents:
+        if p.name == 'install':
+            ws_root = p.parent  # workspace root
+            data_dir = ws_root / 'src' / pkg_name / pkg_name / 'hand_eye_calibration' / 'data'
+            break
+
+    # If not running from install, fall back to package root path
+    if data_dir is None:
+        data_dir = file_path.parent / 'data'
+
+    if not data_dir.exists():
+        data_dir.mkdir(parents=True, exist_ok=True)
+    
+    data_dir = str(data_dir)
     
     np.save(os.path.join(data_dir, 'R_list_1.npy'), R1_list)
     np.save(os.path.join(data_dir, 'T_list_1.npy'), T1_list)
@@ -301,9 +320,9 @@ def process_camera(node, camera_id1, camera_id2, mtx1, dist1, mtx2, dist2):
     pipeline.stop()
 
 
-if __name__ == "__main__":
+def main(args=None):
     # Initialize ROS2
-    rclpy.init()
+    rclpy.init(args=args)
     
     # Create the ROS2 node
     node = DataCollectionNode()
@@ -336,3 +355,6 @@ if __name__ == "__main__":
     finally:
         node.destroy_node()
         rclpy.shutdown()
+
+if __name__ == "__main__":
+    main()

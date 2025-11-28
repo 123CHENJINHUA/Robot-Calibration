@@ -4,13 +4,9 @@ from typing import Any, Dict, Optional
 
 import numpy as np
 
-try:
-    from .oculus_reader.reader import OculusReader
-except Exception:
-    try:
-        from oculus_reader.reader import OculusReader
-    except Exception as e:
-        raise ImportError("无法导入 OculusReader，请检查路径。") from e
+
+from .oculus_reader.reader import OculusReader
+
 
 
 @dataclass

@@ -20,6 +20,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
+            'remote_control_node = remote_control_pkg.remote_control_node:main',
         ],
     },
 )

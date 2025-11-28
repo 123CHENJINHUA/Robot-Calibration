@@ -4,16 +4,20 @@ from typing import Sequence, Optional, Dict, Any
 import argparse
 import sys
 
-try:
-    from fairino import Robot as FairinoSDK
-except ImportError:
-    FairinoSDK = None
+# Try to import the bundled `fairino` subpackage first (when running as part
+# of the `remote_control_pkg` package). If that fails, fall back to a
+# globally installed `fairino` package. If neither is available, leave
+# `FairinoSDK` as None so the code can raise a clear ImportError later.
+FairinoSDK = None
 
-try:
-    from vr_oculus2 import OculusQuest3Controller, VRConfig
-except Exception:
-    OculusQuest3Controller = None
-    VRConfig = None
+from .fairino import Robot as FairinoSDK
+
+
+OculusQuest3Controller = None
+VRConfig = None
+
+from .vr_oculus2 import OculusQuest3Controller, VRConfig
+
 
 # ROS2 imports
 import rclpy
@@ -56,36 +60,39 @@ class FairinoCartRobot:
         self._vel = 50.0
         self._filterT = 0.5
         self._gain_amplifier = 0.0
+        self._lock = threading.RLock()
 
     @property
     def is_connected(self) -> bool:
         return self.robot is not None
 
     def connect(self):
-        if self.is_connected:
-            return
-        if FairinoSDK is None:
-            raise ImportError("未找到 fairino SDK，请先安装。")
-        try:
-            self.robot = FairinoSDK.RPC(self.robot_ip) if hasattr(FairinoSDK, "RPC") else FairinoSDK(self.robot_ip)
+        with self._lock:
+            if self.is_connected:
+                return
+            if FairinoSDK is None:
+                raise ImportError("未找到 fairino SDK，请先安装。")
             try:
-                self.robot.SetSpeed(20)
-            except Exception:
-                pass
-            logger.info(f"[Fairino] Connected {self.robot_ip}")
-        except Exception as e:
-            self.robot = None
-            raise RuntimeError(f"连接失败 {self.robot_ip}: {e}") from e
+                self.robot = FairinoSDK.RPC(self.robot_ip) if hasattr(FairinoSDK, "RPC") else FairinoSDK(self.robot_ip)
+                try:
+                    self.robot.SetSpeed(20)
+                except Exception:
+                    pass
+                logger.info(f"[Fairino] Connected {self.robot_ip}")
+            except Exception as e:
+                self.robot = None
+                raise RuntimeError(f"连接失败 {self.robot_ip}: {e}") from e
 
     def disconnect(self):
-        if not self.is_connected:
-            return
-        try:
-            if hasattr(self.robot, "CloseRPC"):
-                self.robot.CloseRPC()
-        finally:
-            self.robot = None
-            logger.info("[Fairino] Disconnected")
+        with self._lock:
+            if not self.is_connected:
+                return
+            try:
+                if hasattr(self.robot, "CloseRPC"):
+                    self.robot.CloseRPC()
+            finally:
+                self.robot = None
+                logger.info("[Fairino] Disconnected")
 
     def _throttle(self):
         now = time.time()
@@ -96,21 +103,22 @@ class FairinoCartRobot:
         self._last_send_time = time.time()
 
     def _call_servo(self, mode: int, desc_pos: Sequence[float]):
-        if not self.is_connected:
-            raise RuntimeError("Robot 未连接")
-        try:
-            self.robot.ServoCart(
-                mode=mode,
-                desc_pos=list(desc_pos),
-                pos_gain=self._pos_gain,
-                acc=self._acc,
-                vel=self._vel,
-                cmdT=self._cmdT,
-                filterT=self._filterT,
-                gain=self._gain_amplifier,
-            )
-        except Exception as e:
-            logger.error(f"ServoCart 失败 mode={mode}: {e}")
+        with self._lock:
+            if not self.is_connected:
+                raise RuntimeError("Robot 未连接")
+            try:
+                self.robot.ServoCart(
+                    mode=mode,
+                    desc_pos=list(desc_pos),
+                    pos_gain=self._pos_gain,
+                    acc=self._acc,
+                    vel=self._vel,
+                    cmdT=self._cmdT,
+                    filterT=self._filterT,
+                    gain=self._gain_amplifier,
+                )
+            except Exception as e:
+                logger.error(f"ServoCart 失败 mode={mode}: {e}")
 
     def send_abs_pose(self, pose6: Sequence[float]):
         if len(pose6) != 6:
@@ -163,18 +171,17 @@ class FairinoCartRobot:
 
     def get_tcp_pose(self) -> Optional[list]:
         """获取当前 TCP 位姿 [x, y, z, rx, ry, rz]"""
-        if not self.is_connected:
-            return None
-        try:
-            ret_org = self.robot.GetActualTCPPose()
-            if hasattr(ret_org, '__len__') and len(ret_org) >= 6:
-                return [float(ret_org[1][i]) for i in range(6)]
-            else:
-                logger.warning("获取 TCP 位姿失败: 返回数据格式错误")
+        with self._lock:
+            if not self.is_connected:
                 return None
-        except Exception as e:
-            logger.error(f"获取 TCP 位姿异常: {e}")
-            return None
+            try:
+                ret_org = self.robot.GetActualTCPPose()
+            
+                return ret_org[1]
+                
+            except Exception as e:
+                logger.error(f"获取 TCP 位姿异常: {e}")
+                return None
 
     def __del__(self):
         try:
@@ -219,6 +226,7 @@ class DualFairinoCartRobot(Node):
         # Get and publish robot1 TCP pose
         if self.robot1_connected:
             tcp1 = self.robot1.get_tcp_pose()
+            # logger.info(f"获取 TCP 位姿: {tcp1}")
             if tcp1 is not None:
                 msg1 = Float64MultiArray()
                 msg1.data = tcp1
@@ -227,6 +235,7 @@ class DualFairinoCartRobot(Node):
         # Get and publish robot2 TCP pose
         if self.robot2_connected:
             tcp2 = self.robot2.get_tcp_pose()
+            # logger.info(f"获取 TCP 位姿: {tcp2}")
             if tcp2 is not None:
                 msg2 = Float64MultiArray()
                 msg2.data = tcp2
@@ -437,7 +446,7 @@ class DualFairinoCartRobot(Node):
                     last_print = now
                 
                 # Process ROS callbacks
-                rclpy.spin_once(self, timeout_sec=0.001)
+                # rclpy.spin_once(self, timeout_sec=0.001)
                 
         except KeyboardInterrupt:
             logger.info("用户中断 VR loop")
@@ -473,7 +482,7 @@ def main():
     rclpy.init()
     
     parser = _build_arg_parser()
-    args = parser.parse_args()
+    args, _ = parser.parse_known_args()
 
     cfg1 = FairinoConfig(
         robot_ip=args.robot2_ip,
@@ -491,6 +500,11 @@ def main():
     dual_robot = DualFairinoCartRobot(cfg1, cfg2)
 
     dual_robot.connect()
+    
+    # Start ROS spin thread
+    spin_thread = threading.Thread(target=rclpy.spin, args=(dual_robot,), daemon=True)
+    spin_thread.start()
+
     try:
         dual_robot.run_vr_loop(vr_mode=args.vr_mode, use_gripper=args.use_gripper, joint6_step=args.joint6_step)
     finally:
