@@ -1,0 +1,39 @@
+Calibration Result Evaluation Report
+==================================================
+
+1. Data Overview
+   Depth camera to base1 transformations: 353 measurements
+   Depth camera to base2 transformations: 353 measurements
+   Base2 to base1 transformations: 353 measurements
+
+2. Depth Camera to Base1 Transformation Error Against Mean
+   Position error mean: 104.328 mm
+   Position error std: 58.077 mm
+   Position error RMS: 119.404 mm
+   Position error max: 418.082 mm
+   Rotation error mean: 7.062 deg
+   Rotation error std: 4.129 deg
+   Rotation error RMS: 8.181 deg
+   Rotation error max: 30.428 deg
+
+3. Depth Camera to Base2 Transformation Error Against Mean
+   Position error mean: 75.028 mm
+   Position error std: 29.587 mm
+   Position error RMS: 80.651 mm
+   Position error max: 160.503 mm
+   Rotation error mean: 6.390 deg
+   Rotation error std: 2.378 deg
+   Rotation error RMS: 6.818 deg
+   Rotation error max: 14.552 deg
+
+4. Base2 to Base1 Transformation Error Against Mean
+   Position error mean: 135.220 mm
+   Position error std: 59.623 mm
+   Position error RMS: 147.782 mm
+   Position error max: 408.023 mm
+   Rotation error mean: 10.097 deg
+   Rotation error std: 4.698 deg
+   Rotation error RMS: 11.137 deg
+   Rotation error max: 29.755 deg
+
+Evaluation completed. Detailed charts saved to result directory.

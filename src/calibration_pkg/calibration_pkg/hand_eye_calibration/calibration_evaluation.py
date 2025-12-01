@@ -2,6 +2,8 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 from math import *
+import os
+from pathlib import Path
 
 
 def rotation_matrix_to_euler(R):
@@ -98,7 +100,7 @@ def plot_error_distribution(errors, title, xlabel, filename):
     # plt.show()
 
 
-def evaluate_against_mean(RT_list, RT_mean, name):
+def evaluate_against_mean(RT_list, RT_mean, name, result_dir):
     """
     Evaluate errors of each transformation matrix relative to the mean
     """
@@ -135,12 +137,12 @@ def evaluate_against_mean(RT_list, RT_mean, name):
     plot_error_distribution(position_errors, 
                           f'{name} Position Error', 
                           'Position Error (mm)',
-                          f'./hand_eye_calibration/result/{name.replace(" ", "_")}_position_error.png')
+                          os.path.join(result_dir, f'{name.replace(" ", "_")}_position_error.png'))
     
     plot_error_distribution(rotation_errors, 
                           f'{name} Rotation Error', 
                           'Rotation Error (deg)',
-                          f'./hand_eye_calibration/result/{name.replace(" ", "_")}_rotation_error.png')
+                          os.path.join(result_dir, f'{name.replace(" ", "_")}_rotation_error.png'))
     
     return pos_stats, rot_stats
 
@@ -181,15 +183,32 @@ def main():
     """
     print("Starting calibration result evaluation...")
     
+    file_path = Path(__file__).resolve()
+    pkg_name = 'calibration_pkg'
+
+    # Prefer saving under the SOURCE workspace: <ws>/src/calibration_pkg/calibration_pkg/hand_eye_calibration/result
+    result_dir = None
+    for p in file_path.parents:
+        if p.name == 'install':
+            ws_root = p.parent  # workspace root
+            result_dir = ws_root / 'src' / pkg_name / pkg_name / 'hand_eye_calibration' / 'result'
+            break
+
+    # If not running from install, fall back to package root path
+    if result_dir is None:
+        result_dir = file_path.parent / 'result'
+    
+    result_dir = str(result_dir)
+    
     try:
         # Load calibration results
-        RT_depth_cam_to_base1_list = np.load('./hand_eye_calibration/result/RT_depth_cam_to_base1.npy')
-        RT_depth_cam_to_base2_list = np.load('./hand_eye_calibration/result/RT_depth_cam_to_base2.npy')
-        RT_base2_to_base1_list = np.load('./hand_eye_calibration/result/RT_base2_to_base1.npy')
+        RT_depth_cam_to_base1_list = np.load(os.path.join(result_dir, 'RT_depth_cam_to_base1.npy'))
+        RT_depth_cam_to_base2_list = np.load(os.path.join(result_dir, 'RT_depth_cam_to_base2.npy'))
+        RT_base2_to_base1_list = np.load(os.path.join(result_dir, 'RT_base2_to_base1.npy'))
         
-        RT_depth_cam_to_base1_mean = np.load('./hand_eye_calibration/result/RT_depth_cam_to_base1_mean.npy')
-        RT_depth_cam_to_base2_mean = np.load('./hand_eye_calibration/result/RT_depth_cam_to_base2_mean.npy')
-        RT_base2_to_base1_mean = np.load('./hand_eye_calibration/result/RT_base2_to_base1_mean.npy')
+        RT_depth_cam_to_base1_mean = np.load(os.path.join(result_dir, 'RT_depth_cam_to_base1_mean.npy'))
+        RT_depth_cam_to_base2_mean = np.load(os.path.join(result_dir, 'RT_depth_cam_to_base2_mean.npy'))
+        RT_base2_to_base1_mean = np.load(os.path.join(result_dir, 'RT_base2_to_base1_mean.npy'))
         
         print(f"Successfully loaded calibration results:")
         print(f"  Depth camera to base1 transformations: {len(RT_depth_cam_to_base1_list)} measurements")
@@ -209,12 +228,12 @@ def main():
     analyze_transformation_matrix(RT_base2_to_base1_mean, "Base2 to Base1 (Mean)")
     
     # Evaluate errors against mean values
-    depth_cam_base1_vs_mean = evaluate_against_mean(RT_depth_cam_to_base1_list, RT_depth_cam_to_base1_mean, "Depth Camera to Base1")
-    depth_cam_base2_vs_mean = evaluate_against_mean(RT_depth_cam_to_base2_list, RT_depth_cam_to_base2_mean, "Depth Camera to Base2")
-    base_transform_vs_mean = evaluate_against_mean(RT_base2_to_base1_list, RT_base2_to_base1_mean, "Base2 to Base1")
+    depth_cam_base1_vs_mean = evaluate_against_mean(RT_depth_cam_to_base1_list, RT_depth_cam_to_base1_mean, "Depth Camera to Base1", result_dir)
+    depth_cam_base2_vs_mean = evaluate_against_mean(RT_depth_cam_to_base2_list, RT_depth_cam_to_base2_mean, "Depth Camera to Base2", result_dir)
+    base_transform_vs_mean = evaluate_against_mean(RT_base2_to_base1_list, RT_base2_to_base1_mean, "Base2 to Base1", result_dir)
     
     # Save evaluation report
-    with open('./hand_eye_calibration/result/calibration_evaluation_report.txt', 'w', encoding='utf-8') as f:
+    with open(os.path.join(result_dir, 'calibration_evaluation_report.txt'), 'w', encoding='utf-8') as f:
         f.write("Calibration Result Evaluation Report\n")
         f.write("=" * 50 + "\n\n")
         
@@ -258,7 +277,7 @@ def main():
         
         f.write("Evaluation completed. Detailed charts saved to result directory.\n")
     
-    print("\nEvaluation completed! Report saved to './hand_eye_calibration/result/calibration_evaluation_report.txt'")
+    print(f"\nEvaluation completed! Report saved to '{os.path.join(result_dir, 'calibration_evaluation_report.txt')}'")
     print("Error distribution plots saved to result directory")
 
 
