@@ -55,6 +55,21 @@ def calculate_pose_error(RT1, RT2):
     return position_error, rotation_error
 
 
+def remove_outliers(data, threshold=1.5):
+    """
+    Remove outliers using IQR method
+    """
+    data = np.array(data)
+    q1 = np.percentile(data, 25)
+    q3 = np.percentile(data, 75)
+    iqr = q3 - q1
+    lower_bound = q1 - threshold * iqr
+    upper_bound = q3 + threshold * iqr
+    
+    mask = (data >= lower_bound) & (data <= upper_bound)
+    return data[mask], mask
+
+
 def calculate_statistics(data):
     """
     Calculate statistical information
@@ -100,7 +115,7 @@ def plot_error_distribution(errors, title, xlabel, filename):
     # plt.show()
 
 
-def evaluate_against_mean(RT_list, RT_mean, name, result_dir):
+def evaluate_against_mean(RT_list, RT_mean, name, result_dir, ignore_outliers=True):
     """
     Evaluate errors of each transformation matrix relative to the mean
     """
@@ -115,9 +130,29 @@ def evaluate_against_mean(RT_list, RT_mean, name, result_dir):
         rotation_errors.append(rot_err)
         print(f"Measurement {i+1}: Position error = {pos_err:.3f} mm, Rotation error = {rot_err:.3f} deg")
     
+    # Filter outliers if requested
+    if ignore_outliers:
+        clean_pos_errors, pos_mask = remove_outliers(position_errors)
+        clean_rot_errors, rot_mask = remove_outliers(rotation_errors)
+        
+        n_pos_outliers = len(position_errors) - len(clean_pos_errors)
+        n_rot_outliers = len(rotation_errors) - len(clean_rot_errors)
+        
+        if n_pos_outliers > 0:
+            print(f"Removed {n_pos_outliers} position error outliers")
+        if n_rot_outliers > 0:
+            print(f"Removed {n_rot_outliers} rotation error outliers")
+            
+        # Use cleaned data for statistics and plotting
+        stats_pos_errors = clean_pos_errors
+        stats_rot_errors = clean_rot_errors
+    else:
+        stats_pos_errors = position_errors
+        stats_rot_errors = rotation_errors
+
     # Statistical information
-    pos_stats = calculate_statistics(position_errors)
-    rot_stats = calculate_statistics(rotation_errors)
+    pos_stats = calculate_statistics(stats_pos_errors)
+    rot_stats = calculate_statistics(stats_rot_errors)
     
     print(f"\nPosition error statistics relative to mean (mm):")
     print(f"  Mean: {pos_stats['mean']:.3f}")
@@ -134,12 +169,12 @@ def evaluate_against_mean(RT_list, RT_mean, name, result_dir):
     print(f"  RMS: {rot_stats['rms']:.3f}")
     
     # Plot error distribution
-    plot_error_distribution(position_errors, 
+    plot_error_distribution(stats_pos_errors, 
                           f'{name} Position Error', 
                           'Position Error (mm)',
                           os.path.join(result_dir, f'{name.replace(" ", "_")}_position_error.png'))
     
-    plot_error_distribution(rotation_errors, 
+    plot_error_distribution(stats_rot_errors, 
                           f'{name} Rotation Error', 
                           'Rotation Error (deg)',
                           os.path.join(result_dir, f'{name.replace(" ", "_")}_rotation_error.png'))

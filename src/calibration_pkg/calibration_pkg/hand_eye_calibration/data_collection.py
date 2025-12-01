@@ -93,6 +93,8 @@ def process_camera(node, camera_id1, camera_id2, mtx1, dist1, mtx2, dist2):
     current_time = time.time()
     last_time = current_time
 
+    record_time = 0.1  # record data interval time in seconds
+
     count_data = 0
     ###------------------ ARUCO TRACKER ---------------------------
     while (True):
@@ -170,7 +172,7 @@ def process_camera(node, camera_id1, camera_id2, mtx1, dist1, mtx2, dist2):
                     cv2.drawFrameAxes(frame_copy2, mtx2, dist2, rvec_2, tvec_2, length=0.05, thickness=2)
                     cv2.drawFrameAxes(frame_copy3, mtx3, dist3, rvec_3, tvec_3, length=0.05, thickness=2)
 
-                    if current_time - last_time > 0.2:
+                    if current_time - last_time > record_time:
                         
                         last_time = current_time
                         count_data += 1
@@ -345,8 +347,8 @@ def main(args=None):
     mtx3 = cv_file3.getNode("camera_matrix").mat()
     dist3 = cv_file3.getNode("dist_coeff").mat()
 
-    camera1 = 8
-    camera2 = 6
+    camera1 = 6
+    camera2 = 8
 
     try:
         process_camera(node, camera1, camera2, mtx1, dist1, mtx2, dist2)

@@ -3,6 +3,7 @@ import numpy as np
 from math import *
 import os
 from pathlib import Path
+import matplotlib.pyplot as plt
 
 
 def myRPY2R_robot(x, y, z):
@@ -85,7 +86,7 @@ def process_eye_in_hand(R_list,T_list,Robot_data,num,result_dir):
     return result
 
 
-def se3_average(RT_list, remove_outliers=True, outlier_method='iqr', threshold=1.5):
+def se3_average(RT_list, name, result_dir, remove_outliers=True, outlier_method='iqr', threshold=1.5):
     """
     SE3 average using Lie algebra, with optional outlier removal
     
@@ -93,6 +94,10 @@ def se3_average(RT_list, remove_outliers=True, outlier_method='iqr', threshold=1
     -----------
     RT_list : list of 4x4 np.array
         List of transformation matrices
+    name : str
+        Name for the plot title and filename
+    result_dir : str
+        Directory to save the plots
     remove_outliers : bool
         Whether to remove outliers before averaging
     outlier_method : str
@@ -137,6 +142,36 @@ def se3_average(RT_list, remove_outliers=True, outlier_method='iqr', threshold=1
         
         rotvecs = rotvecs[valid_indices]
         translations = translations[valid_indices]
+
+    # Plotting filtered data
+    if result_dir is not None:
+        plt.figure(figsize=(12, 6))
+        
+        # Plot Translations
+        plt.subplot(1, 2, 1)
+        plt.plot(translations[:, 0], label='x')
+        plt.plot(translations[:, 1], label='y')
+        plt.plot(translations[:, 2], label='z')
+        plt.title(f'{name} - Translations (Filtered)')
+        plt.xlabel('Sample Index')
+        plt.ylabel('Translation (mm)')
+        plt.legend()
+        plt.grid(True)
+        
+        # Plot Rotations
+        plt.subplot(1, 2, 2)
+        plt.plot(rotvecs[:, 0]*180/np.pi, label='rx')
+        plt.plot(rotvecs[:, 1]*180/np.pi, label='ry')
+        plt.plot(rotvecs[:, 2]*180/np.pi, label='rz')
+        plt.title(f'{name} - Rotation Vectors (Filtered)')
+        plt.xlabel('Sample Index')
+        plt.ylabel('Rotation Vector (degrees)')
+        plt.legend()
+        plt.grid(True)
+        
+        plt.tight_layout()
+        plt.savefig(os.path.join(result_dir, f'{name}_filtered_distribution.png'))
+        plt.close()
     
     # Calculate mean
     rotvec_mean = np.mean(rotvecs, axis=0)
@@ -311,11 +346,11 @@ def main():
 
     # Perform Lie algebra averaging with outlier removal for more accurate RT (iqr/sigma)
     print("\n=== Calculating depth camera to base transformation (with outlier removal) ===")
-    RT_depth_cam_to_base1_mean = se3_average(RT_depth_cam_to_base1_list, remove_outliers=True, outlier_method='iqr', threshold=1.5)
-    RT_depth_cam_to_base2_mean = se3_average(RT_depth_cam_to_base2_list, remove_outliers=True, outlier_method='iqr', threshold=1.5)
+    RT_depth_cam_to_base1_mean = se3_average(RT_depth_cam_to_base1_list, "Depth_Cam_to_Base1", result_dir, remove_outliers=True, outlier_method='iqr', threshold=1.5)
+    RT_depth_cam_to_base2_mean = se3_average(RT_depth_cam_to_base2_list, "Depth_Cam_to_Base2", result_dir, remove_outliers=True, outlier_method='iqr', threshold=1.5)
 
     print("\n=== Calculating base2 to base1 transformation (with outlier removal) ===")
-    RT_base2_to_base1_mean = se3_average(RT_base2_to_base1_list, remove_outliers=True, outlier_method='iqr', threshold=1.5)
+    RT_base2_to_base1_mean = se3_average(RT_base2_to_base1_list, "Base2_to_Base1", result_dir, remove_outliers=True, outlier_method='iqr', threshold=1.5)
 
     np.save(os.path.join(result_dir, 'RT_depth_cam_to_base1.npy'), RT_depth_cam_to_base1_list)
     np.save(os.path.join(result_dir, 'RT_depth_cam_to_base2.npy'), RT_depth_cam_to_base2_list)
