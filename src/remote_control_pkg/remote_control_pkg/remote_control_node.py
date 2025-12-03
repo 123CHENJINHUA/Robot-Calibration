@@ -207,7 +207,7 @@ class DualFairinoCartRobot(Node):
         self.tcp_publisher2 = self.create_publisher(Float64MultiArray, '/robot2/tcp_pose', 10)
         
         # TCP publishing timer
-        self.tcp_publish_timer = self.create_timer(0.1, self.publish_tcp_poses)  # 10Hz
+        self.tcp_publish_timer = self.create_timer(0.03, self.publish_tcp_poses)  # 30Hz
         
         # Optional peripherals
         self.gripper = None
