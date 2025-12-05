@@ -120,7 +120,7 @@ def process_camera(node, camera_id1, camera_id2, mtx1, dist1, mtx2, dist2):
     cap1.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'))
     # Set exposure for Camera 1 (1: Manual, 3: Auto)
     cap1.set(cv2.CAP_PROP_AUTO_EXPOSURE, 1)
-    cap1.set(cv2.CAP_PROP_EXPOSURE, 400)
+    cap1.set(cv2.CAP_PROP_EXPOSURE, 350)
 
     cap2.set(3, width)  #设置宽度
     cap2.set(4, height)  #设置长度
@@ -128,7 +128,7 @@ def process_camera(node, camera_id1, camera_id2, mtx1, dist1, mtx2, dist2):
     cap2.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'))
     # Set exposure for Camera 2
     cap2.set(cv2.CAP_PROP_AUTO_EXPOSURE, 1)
-    cap2.set(cv2.CAP_PROP_EXPOSURE, 400)
+    cap2.set(cv2.CAP_PROP_EXPOSURE, 350)
 
     pipeline = rs.pipeline()
     config = rs.config()
