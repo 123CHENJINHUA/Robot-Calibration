@@ -51,8 +51,55 @@ class DataCollectionNode(Node):
         self.tcp_pose2 = msg.data
 
 
+def draw_pose_info(img, rvec, tvec, robot_pose, robot_name):
+        h, w = img.shape[:2]
+        scale = w / 1280.0
+        
+        font_scale = 1.0 * scale
+        thickness = max(1, int(2 * scale))
+        line_step = int(40 * scale)
+        x_start = int(20 * scale)
+        y_start = int(50 * scale)
+
+        # Camera Pose
+        R, _ = cv2.Rodrigues(rvec)
+        sy = np.sqrt(R[0,0] * R[0,0] + R[1,0] * R[1,0])
+        if sy < 1e-6:
+            x = np.arctan2(-R[1,2], R[1,1])
+            y = np.arctan2(-R[2,0], sy)
+            z = 0
+        else:
+            x = np.arctan2(R[2,1], R[2,2])
+            y = np.arctan2(-R[2,0], sy)
+            z = np.arctan2(R[1,0], R[0,0])
+        euler = np.array([x, y, z]) * 180.0 / np.pi
+        t_mm = tvec.flatten() * 1000.0
+        
+        cv2.putText(img, f"Cam T(mm): {t_mm[0]:.1f}, {t_mm[1]:.1f}, {t_mm[2]:.1f}", (x_start, y_start), cv2.FONT_HERSHEY_SIMPLEX, font_scale, (0, 255, 0), thickness)
+        cv2.putText(img, f"Cam R(deg): {euler[0]:.1f}, {euler[1]:.1f}, {euler[2]:.1f}", (x_start, y_start + line_step), cv2.FONT_HERSHEY_SIMPLEX, font_scale, (0, 255, 0), thickness)
+        
+        # Robot Pose
+        if robot_pose is not None:
+            cv2.putText(img, f"{robot_name} P: {robot_pose[0]:.1f}, {robot_pose[1]:.1f}, {robot_pose[2]:.1f}", (x_start, y_start + 2*line_step), cv2.FONT_HERSHEY_SIMPLEX, font_scale, (255, 255, 0), thickness)
+            cv2.putText(img, f"{robot_name} R: {robot_pose[3]:.1f}, {robot_pose[4]:.1f}, {robot_pose[5]:.1f}", (x_start, y_start + 3*line_step), cv2.FONT_HERSHEY_SIMPLEX, font_scale, (255, 255, 0), thickness)
+
+
 def process_camera(node, camera_id1, camera_id2, mtx1, dist1, mtx2, dist2):
 
+    file_path = Path(__file__).resolve()
+    pkg_name = 'calibration_pkg'
+    data_dir = None
+    for p in file_path.parents:
+        if p.name == 'install':
+            ws_root = p.parent
+            data_dir = ws_root / 'src' / pkg_name / pkg_name / 'hand_eye_calibration' / 'data'
+            break
+    if data_dir is None:
+        data_dir = file_path.parent / 'data'
+    if not data_dir.exists():
+        data_dir.mkdir(parents=True, exist_ok=True)
+    data_dir = str(data_dir)
+    
     robot_pos1 = []
     robot_pos2 = []
     R1_list = []
@@ -64,23 +111,29 @@ def process_camera(node, camera_id1, camera_id2, mtx1, dist1, mtx2, dist2):
 
     cap1 = cv2.VideoCapture(camera_id1)
     cap2 = cv2.VideoCapture(camera_id2)
-    width = 640
-    height = 480
+    width = 1280
+    height = 720
     fps = 30
     cap1.set(3, width)  #设置宽度
     cap1.set(4, height)  #设置长度
     cap1.set(5, fps)  
     cap1.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'))
+    # Set exposure for Camera 1 (1: Manual, 3: Auto)
+    cap1.set(cv2.CAP_PROP_AUTO_EXPOSURE, 1)
+    cap1.set(cv2.CAP_PROP_EXPOSURE, 400)
 
     cap2.set(3, width)  #设置宽度
     cap2.set(4, height)  #设置长度
     cap2.set(5, fps)  
     cap2.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'))
+    # Set exposure for Camera 2
+    cap2.set(cv2.CAP_PROP_AUTO_EXPOSURE, 1)
+    cap2.set(cv2.CAP_PROP_EXPOSURE, 400)
 
     pipeline = rs.pipeline()
     config = rs.config()
-    config.enable_stream(rs.stream.depth, 640, 480, rs.format.z16, 30)
-    config.enable_stream(rs.stream.color, 640, 480, rs.format.bgr8, 30)
+    config.enable_stream(rs.stream.depth, 1280, 720, rs.format.z16, 30)
+    config.enable_stream(rs.stream.color, 1280, 720, rs.format.bgr8, 30)
 
     profile = pipeline.start(config)
     color_profile = rs.video_stream_profile(profile.get_stream(rs.stream.color))
@@ -89,6 +142,15 @@ def process_camera(node, camera_id1, camera_id2, mtx1, dist1, mtx2, dist2):
                     [0, intrinsics.fy, intrinsics.ppy],
                     [0, 0, 1]])
     dist3 = np.array(intrinsics.coeffs, dtype=np.float32)
+
+    # Video recording setup
+    disp_scale = 0.4
+    disp_w = int(width * disp_scale)
+    disp_h = int(height * disp_scale)
+    video_path = os.path.join(data_dir, f'calibration_video_{int(time.time())}.avi')
+    fourcc = cv2.VideoWriter_fourcc(*'XVID')
+    out = cv2.VideoWriter(video_path, fourcc, 30.0, (disp_w * 3, disp_h))
+    print(f"Recording video to {video_path}")
 
     current_time = time.time()
     last_time = current_time
@@ -136,7 +198,7 @@ def process_camera(node, camera_id1, camera_id2, mtx1, dist1, mtx2, dist2):
 
         # set dictionary size depending on the aruco marker selected
         aruco_dict = aruco.getPredefinedDictionary(aruco.DICT_6X6_250)
-        board = cv2.aruco.CharucoBoard((3, 3), 0.066, 0.049, aruco_dict)
+        board = cv2.aruco.CharucoBoard((3, 3), 0.095, 0.071, aruco_dict)
         # detector parameters can be set here (List of detection parameters[3])
         parameters = aruco.DetectorParameters()
         parameters.adaptiveThreshConstant = 10
@@ -168,9 +230,19 @@ def process_camera(node, camera_id1, camera_id2, mtx1, dist1, mtx2, dist2):
 
                 # If pose estimation is successful, draw the axis
                 if retval1 and retval2 and retval3:
-                    cv2.drawFrameAxes(frame_copy1, mtx1, dist1, rvec_1, tvec_1, length=0.05, thickness=2)
-                    cv2.drawFrameAxes(frame_copy2, mtx2, dist2, rvec_2, tvec_2, length=0.05, thickness=2)
-                    cv2.drawFrameAxes(frame_copy3, mtx3, dist3, rvec_3, tvec_3, length=0.05, thickness=2)
+                    # Adaptive axis parameters
+                    h, w = frame_copy1.shape[:2]
+                    scale = w / 1280.0
+                    axis_length = 0.05
+                    axis_thickness = max(2, int(3 * scale))
+
+                    cv2.drawFrameAxes(frame_copy1, mtx1, dist1, rvec_1, tvec_1, length=axis_length, thickness=axis_thickness)
+                    cv2.drawFrameAxes(frame_copy2, mtx2, dist2, rvec_2, tvec_2, length=axis_length, thickness=axis_thickness)
+                    cv2.drawFrameAxes(frame_copy3, mtx3, dist3, rvec_3, tvec_3, length=axis_length, thickness=axis_thickness)
+
+                    draw_pose_info(frame_copy1, rvec_1, tvec_1, ret_org1, "Rob1")
+                    draw_pose_info(frame_copy2, rvec_2, tvec_2, ret_org2, "Rob2")
+                    draw_pose_info(frame_copy3, rvec_3, tvec_3, None, "Rob3")
 
                     if current_time - last_time > record_time:
                         
@@ -202,13 +274,19 @@ def process_camera(node, camera_id1, camera_id2, mtx1, dist1, mtx2, dist2):
                     cv2.putText(frame_copy3, "No Ids", (0, 64), font, 1, (0, 255, 0), 2, cv2.LINE_AA)
 
         # resize each frame to the same display size and merge horizontally
-        disp_size = (320, 240)  # (width, height) for display
+        # Adaptive display size (e.g., 0.4 of original width)
+        # disp_scale = 0.4
+        # disp_w = int(width * disp_scale)
+        # disp_h = int(height * disp_scale)
+        disp_size = (disp_w, disp_h)
+        
         frame_disp1 = cv2.resize(frame_copy1, disp_size)
         frame_disp2 = cv2.resize(frame_copy2, disp_size)
         frame_disp3 = cv2.resize(frame_copy3, disp_size)
 
         # Concatenate horizontally and show in one window
         merged = np.hstack((frame_disp1, frame_disp2, frame_disp3))
+        out.write(merged)
         cv2.imshow('merged', merged)
 
         k = cv2.waitKey(1)
@@ -216,26 +294,6 @@ def process_camera(node, camera_id1, camera_id2, mtx1, dist1, mtx2, dist2):
             break
 
     # When everything done, release the capture
-    
-    file_path = Path(__file__).resolve()
-    pkg_name = 'calibration_pkg'
-
-    # Prefer saving under the SOURCE workspace: <ws>/src/calibration_pkg/calibration_pkg/hand_eye_calibration/data
-    data_dir = None
-    for p in file_path.parents:
-        if p.name == 'install':
-            ws_root = p.parent  # workspace root
-            data_dir = ws_root / 'src' / pkg_name / pkg_name / 'hand_eye_calibration' / 'data'
-            break
-
-    # If not running from install, fall back to package root path
-    if data_dir is None:
-        data_dir = file_path.parent / 'data'
-
-    if not data_dir.exists():
-        data_dir.mkdir(parents=True, exist_ok=True)
-    
-    data_dir = str(data_dir)
     
     np.save(os.path.join(data_dir, 'R_list_1.npy'), R1_list)
     np.save(os.path.join(data_dir, 'T_list_1.npy'), T1_list)
@@ -320,6 +378,7 @@ def process_camera(node, camera_id1, camera_id2, mtx1, dist1, mtx2, dist2):
 
     cv2.destroyAllWindows()
     pipeline.stop()
+    out.release()
 
 
 def main(args=None):
@@ -347,8 +406,8 @@ def main(args=None):
     mtx3 = cv_file3.getNode("camera_matrix").mat()
     dist3 = cv_file3.getNode("dist_coeff").mat()
 
-    camera1 = 6
-    camera2 = 8
+    camera1 = 8
+    camera2 = 6
 
     try:
         process_camera(node, camera1, camera2, mtx1, dist1, mtx2, dist2)

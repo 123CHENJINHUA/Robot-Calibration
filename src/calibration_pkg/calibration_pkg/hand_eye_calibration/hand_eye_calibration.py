@@ -83,6 +83,35 @@ def process_eye_in_hand(R_list,T_list,Robot_data,num,result_dir):
         filename.write(str(value))
         filename.write('\n\n')
 
+    # Calculate statistics
+    translations = []
+    rot_vecs = []
+    for res in result:
+        translations.append(res[:3, 3])
+        r_mat = res[:3, :3]
+        r_vec, _ = cv2.Rodrigues(r_mat)
+        rot_vecs.append(r_vec.flatten())
+
+    translations = np.array(translations)
+    rot_vecs = np.array(rot_vecs)
+
+    # Standard Deviation
+    trans_std = np.std(translations, axis=0)
+    rot_std = np.std(rot_vecs, axis=0)
+    rot_std_deg = rot_std * 180.0 / np.pi
+
+    # Variance
+    trans_var = np.var(translations, axis=0)
+    rot_var = np.var(rot_vecs, axis=0)
+    rot_var_deg = rot_var * (180.0 / np.pi)**2
+
+    print(f"\n=== Robot {num} Calibration Consistency Analysis ===")
+    print(f"Translation Std (mm): X={trans_std[0]:.4f}, Y={trans_std[1]:.4f}, Z={trans_std[2]:.4f}, Mean={np.mean(trans_std):.4f}")
+    print(f"Translation Var (mm^2): X={trans_var[0]:.4f}, Y={trans_var[1]:.4f}, Z={trans_var[2]:.4f}")
+    print(f"Rotation Std (deg): Rx={rot_std_deg[0]:.4f}, Ry={rot_std_deg[1]:.4f}, Rz={rot_std_deg[2]:.4f}, Mean={np.mean(rot_std_deg):.4f}")
+    print(f"Rotation Var (deg^2): Rx={rot_var_deg[0]:.4f}, Ry={rot_var_deg[1]:.4f}, Rz={rot_var_deg[2]:.4f}")
+    print("==================================================\n")
+
     return result
 
 
