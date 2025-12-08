@@ -2,38 +2,38 @@ Calibration Result Evaluation Report
 ==================================================
 
 1. Data Overview
-   Depth camera to base1 transformations: 1483 measurements
-   Depth camera to base2 transformations: 1483 measurements
-   Base2 to base1 transformations: 1483 measurements
+   Depth camera to base1 transformations: 1958 measurements
+   Depth camera to base2 transformations: 1958 measurements
+   Base2 to base1 transformations: 1958 measurements
 
 2. Depth Camera to Base1 Transformation Error Against Mean
-   Position error mean: 10.362 mm
-   Position error std: 4.648 mm
-   Position error RMS: 11.356 mm
-   Position error max: 23.963 mm
-   Rotation error mean: 0.718 deg
-   Rotation error std: 0.332 deg
-   Rotation error RMS: 0.791 deg
-   Rotation error max: 1.678 deg
+   Position error mean: 12.180 mm
+   Position error std: 6.292 mm
+   Position error RMS: 13.709 mm
+   Position error max: 30.454 mm
+   Rotation error mean: 1.006 deg
+   Rotation error std: 0.521 deg
+   Rotation error RMS: 1.133 deg
+   Rotation error max: 2.514 deg
 
 3. Depth Camera to Base2 Transformation Error Against Mean
-   Position error mean: 13.682 mm
-   Position error std: 6.088 mm
-   Position error RMS: 14.975 mm
-   Position error max: 30.839 mm
-   Rotation error mean: 1.103 deg
-   Rotation error std: 0.582 deg
-   Rotation error RMS: 1.247 deg
-   Rotation error max: 2.777 deg
+   Position error mean: 20.342 mm
+   Position error std: 8.545 mm
+   Position error RMS: 22.064 mm
+   Position error max: 45.304 mm
+   Rotation error mean: 1.546 deg
+   Rotation error std: 0.703 deg
+   Rotation error RMS: 1.698 deg
+   Rotation error max: 3.587 deg
 
 4. Base2 to Base1 Transformation Error Against Mean
-   Position error mean: 17.888 mm
-   Position error std: 8.593 mm
-   Position error RMS: 19.845 mm
-   Position error max: 42.930 mm
-   Rotation error mean: 1.316 deg
-   Rotation error std: 0.663 deg
-   Rotation error RMS: 1.474 deg
-   Rotation error max: 3.179 deg
+   Position error mean: 22.435 mm
+   Position error std: 8.924 mm
+   Position error RMS: 24.145 mm
+   Position error max: 47.269 mm
+   Rotation error mean: 1.876 deg
+   Rotation error std: 0.627 deg
+   Rotation error RMS: 1.978 deg
+   Rotation error max: 3.769 deg
 
 Evaluation completed. Detailed charts saved to result directory.
