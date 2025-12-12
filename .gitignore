@@ -2,6 +2,7 @@ build/
 install/
 log/
 .vscode/
+src/calibration_pkg/calibration_pkg/hand_eye_calibration/data/*.avi
 
 __pycache__/
 *.pyc
