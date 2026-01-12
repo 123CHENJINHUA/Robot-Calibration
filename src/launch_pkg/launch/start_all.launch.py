@@ -1,54 +1,62 @@
-import launch
-import launch_ros
+#!/usr/bin/env python3
+"""
+Launch file to start the full system: RealSense camera, IMU odometry, vision pose estimation, and visualization.
+"""
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, OpaqueFunction
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from ament_index_python.packages import get_package_share_directory
-from pathlib import Path
-import os
-import sys
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
+from launch_ros.actions import Node
+from launch.conditions import IfCondition
+from launch_ros.substitutions import FindPackageShare
+
 
 def generate_launch_description():
-    
-    action_node_data_collection = launch_ros.actions.Node(
-        package='calibration_pkg',
-        executable='data_collection',
-        name='data_collection',
-        output='screen'
+
+    declare_enable_realsense = DeclareLaunchArgument('enable_realsense', default_value='true', description='Start RealSense camera')
+
+    declare_depth_topic = DeclareLaunchArgument('depth_topic', default_value='/camera/camera/aligned_depth_to_color/image_raw')
+    declare_color_topic = DeclareLaunchArgument('color_topic', default_value='/camera/camera/color/image_raw')
+    declare_camera_info_topic = DeclareLaunchArgument('camera_info_topic', default_value='/camera/camera/color/camera_info')
+   
+    # Include RealSense launch (if available)
+    realsense_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource([
+            PathJoinSubstitution([
+                FindPackageShare('realsense2_camera'),
+                'launch',
+                'rs_launch.py'
+            ])
+        ]),
+        launch_arguments={
+            'enable_depth': 'true',
+            'enable_color': 'true',
+            'align_depth.enable': 'true',
+            'pointcloud.enable': 'true',
+            'rgb_camera.color_profile': '640x480x30',
+            'depth_module.depth_profile': '640x480x30',
+        }.items(),
+        condition=IfCondition(LaunchConfiguration('enable_realsense'))
     )
 
-    action_node_remote_control = launch_ros.actions.Node(
+    remote_control_node = Node(
         package='remote_control_pkg',
         executable='remote_control_node',
         name='remote_control_node',
         output='screen'
     )
 
-    action_node_realsense = launch_ros.actions.Node(
-        package='realsense2_camera',
-        executable='realsense2_camera_node',
-        name='camera',
-        namespace='camera',
-        parameters=[{
-            'enable_color': True,
-            'enable_depth': True,
-            'align_depth.enable': True,
-            'rgb_camera.color_profile': '640x480x30',
-            'depth_module.depth_profile': '640x480x30',
-        }],
-        output='screen'
-    )
 
-    action_node_image_display = launch_ros.actions.Node(
-        package='remote_control_pkg',
-        executable='image_display_node',
-        name='image_display_node',
-        output='screen'
-    )
+    ld = LaunchDescription()
+    ld.add_action(declare_enable_realsense)
+    ld.add_action(declare_depth_topic)
+    ld.add_action(declare_color_topic)
+    ld.add_action(declare_camera_info_topic)
+    ld.add_action(realsense_launch)
+    ld.add_action(remote_control_node)
 
-    return launch.LaunchDescription([
-        # action_node_data_collection,
-        action_node_remote_control,
-        action_node_realsense,
-        # action_node_image_display,
-    ])
+    return ld
+
+
+if __name__ == '__main__':
+    generate_launch_description()
